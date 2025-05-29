@@ -23,3 +23,15 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
      - [ ] Caching
 
 2. Drawing to the Screen
+   - [x] Window Creating
+   - [x] Text Layout and Drawing
+   - [x] Listening to Key Events
+   - [x] Scrolling the content in the window
+   - [ ] Exercises (Optional)
+     - [ ] Line breaks
+     - [ ] Mouse wheel
+     - [ ] Emoji
+     - [ ] Resizing
+     - [ ] Zoom
+
+3. Formatting Text

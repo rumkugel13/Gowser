@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}",
-            "args": ["https://browser.engineering/http.html"]
+            "args": ["https://browser.engineering/examples/xiyouji.html", "https://browser.engineering/http.html"]
         }
     ]
 }
