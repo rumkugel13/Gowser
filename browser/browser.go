@@ -1,9 +1,11 @@
 package browser
 
 import (
-	"gowser/layout"
+	"fmt"
 	"gowser/html"
+	"gowser/layout"
 	"gowser/url"
+	"time"
 
 	tk9_0 "modernc.org/tk9.0"
 )
@@ -35,11 +37,23 @@ func NewBrowser() *Browser {
 }
 
 func (b *Browser) Load(url *url.URL) {
+	fmt.Println("Requesting URL:", url)
+	start := time.Now()
 	body := url.Request()
+	fmt.Println("Request took:", time.Since(start))
+
+	start = time.Now()
 	nodes := html.NewHTMLParser(body).Parse()
-	nodes.PrintTree(0)
+	fmt.Println("Parsing took:", time.Since(start))
+
+	// nodes.PrintTree(0)
+	start = time.Now()
 	b.display_list = layout.NewLayout(&nodes).Display_list
+	fmt.Println("Layout took:", time.Since(start))
+
+	start = time.Now()
 	b.Draw()
+	fmt.Println("Drawing took:", time.Since(start))
 }
 
 func (b *Browser) Draw() {
