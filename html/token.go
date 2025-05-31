@@ -1,4 +1,8 @@
-package token
+package html
+
+import (
+	"strconv"
+)
 
 type TokenType int
 
@@ -10,6 +14,7 @@ const (
 type Token interface {
 	Value() string
 	Type() TokenType
+	String() string
 }
 
 type TextToken struct {
@@ -24,6 +29,10 @@ func (t TextToken) Type() TokenType {
 	return TextTokenType
 }
 
+func (t TextToken) String() string {
+	return strconv.Quote(t.Text)
+}
+
 type TagToken struct {
 	Tag string
 }
@@ -34,4 +43,8 @@ func (t TagToken) Value() string {
 
 func (t TagToken) Type() TokenType {
 	return TagTokenType
+}
+
+func (t TagToken) String() string {
+	return "<" + t.Tag + ">"
 }

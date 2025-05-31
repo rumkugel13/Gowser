@@ -1,7 +1,7 @@
 package layout
 
 import (
-	. "gowser/token"
+	. "gowser/html"
 	"strings"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -34,7 +34,7 @@ type Layout struct {
 	Line               []LineItem
 }
 
-func NewLayout(tokens []Token) *Layout {
+func NewLayout(tree *Node) *Layout {
 	layout := &Layout{
 		Display_list: make([]LayoutItem, 0),
 		cursor_x:     float32(HSTEP),
@@ -44,38 +44,50 @@ func NewLayout(tokens []Token) *Layout {
 		size:         12,
 		Line:         make([]LineItem, 0),
 	}
-	for _, t := range tokens {
-		layout.token(t)
-	}
+	layout.recurse(tree)
 	layout.flush()
 	return layout
 }
 
-func (l *Layout) token(token Token) {
-	if token.Type() == TextTokenType {
-		words := strings.Fields(token.Value())
+func (l *Layout) recurse(node *Node) {
+	if text, ok := node.Token.(TextToken); ok {
+		words := strings.Fields(text.Text)
 		for _, word := range words {
 			l.word(word)
 		}
-	} else if token.Value() == "i" {
+	} else if tag, ok := node.Token.(TagToken); ok {
+		l.open_tag(tag.Tag)
+		for _, child := range *node.Children {
+			l.recurse(&child)
+		}
+		l.close_tag(tag.Tag)
+	}
+}
+
+func (l *Layout) open_tag(tag string) {
+	if tag == "i" {
 		l.style = tk9_0.ITALIC
-	} else if token.Value() == "/i" {
-		l.style = tk9_0.ROMAN
-	} else if token.Value() == "b" {
+	} else if tag == "b" {
 		l.weight = tk9_0.BOLD
-	} else if token.Value() == "/b" {
-		l.weight = tk9_0.NORMAL
-	} else if token.Value() == "small" {
+	} else if tag == "small" {
 		l.size -= 2
-	} else if token.Value() == "/small" {
-		l.size += 2
-	} else if token.Value() == "big" {
+	} else if tag == "big" {
 		l.size += 4
-	} else if token.Value() == "/big" {
-		l.size -= 4
-	} else if token.Value() == "br" {
+	} else if tag == "br" {
 		l.flush()
-	} else if token.Value() == "/p" {
+	}
+}
+
+func (l *Layout) close_tag(tag string) {
+	if tag == "i" {
+		l.style = tk9_0.ROMAN
+	} else if tag == "b" {
+		l.weight = tk9_0.NORMAL
+	} else if tag == "small" {
+		l.size += 2
+	} else if tag == "big" {
+		l.size -= 4
+	} else if tag == "p" {
 		l.flush()
 		l.cursor_y += float32(VSTEP)
 	}

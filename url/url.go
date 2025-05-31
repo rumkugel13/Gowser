@@ -88,14 +88,14 @@ func (u *URL) Request() string {
 			break // No more data to read
 		}
 	}
-	lines := strings.Split(response.String(), "\r\n")
+	lines := strings.SplitAfter(response.String(), "\r\n")
 	// statusLine := strings.SplitN(lines[0], " ", 3)
 	// version, status, explanation := statusLine[0], statusLine[1], statusLine[2]
 	responseHeaders := make(map[string]string)
 	var lineNum int
 	for i, line := range lines[1:] {
-		if line == "\r\n" || line == "" {
-			lineNum = i + 1
+		if line == "\r\n" {
+			lineNum = i + 1 + 1 // +1 for the status line, +1 for the empty line after headers
 			break // End of headers
 		}
 		headerParts := strings.SplitN(line, ":", 2)
@@ -109,6 +109,6 @@ func (u *URL) Request() string {
 		panic("Content-Encoding header found in response, unsupported")
 	}
 
-	content := strings.Join(lines[lineNum:], "\r\n")
+	content := strings.Join(lines[lineNum:], "")
 	return content
 }

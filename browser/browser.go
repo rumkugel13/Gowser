@@ -2,9 +2,8 @@ package browser
 
 import (
 	"gowser/layout"
-	. "gowser/token"
+	"gowser/html"
 	"gowser/url"
-	"strings"
 
 	tk9_0 "modernc.org/tk9.0"
 )
@@ -37,8 +36,9 @@ func NewBrowser() *Browser {
 
 func (b *Browser) Load(url *url.URL) {
 	body := url.Request()
-	text := lex(body)
-	b.display_list = layout.NewLayout(text).Display_list
+	nodes := html.NewHTMLParser(body).Parse()
+	nodes.PrintTree(0)
+	b.display_list = layout.NewLayout(&nodes).Display_list
 	b.Draw()
 }
 
@@ -53,29 +53,4 @@ func (b *Browser) Draw() {
 		}
 		b.canvas.CreateText(item.X, item.Y-b.scroll, tk9_0.Txt(item.Word), tk9_0.Anchor("nw"), tk9_0.Font(item.Font))
 	}
-}
-
-func lex(body string) []Token {
-	tokens := []Token{}
-	buffer := strings.Builder{}
-	inTag := false
-	for _, char := range body {
-		if char == '<' {
-			inTag = true
-			if buffer.Len() > 0 {
-				tokens = append(tokens, TextToken{Text: buffer.String()})
-				buffer.Reset()
-			}
-		} else if char == '>' {
-			inTag = false
-			tokens = append(tokens, TagToken{Tag: buffer.String()})
-			buffer.Reset()
-		} else {
-			buffer.WriteRune(char)
-		}
-	}
-	if !inTag && buffer.Len() > 0 {
-		tokens = append(tokens, TextToken{Text: buffer.String()})
-	}
-	return tokens
 }

@@ -11,16 +11,15 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [X] Receive and Split HTTP Response
    - [X] Print Text
    - [ ] Exercises (Optional)
-     - [ ] Alternate Encodings
      - [ ] HTTP/1.1
      - [ ] File URLs
      - [ ] data
-     - [ ] Body tag
      - [ ] Entities
      - [ ] view-source
-     - [ ] Compression
+     - [ ] Keep-alive
      - [ ] Redirects
      - [ ] Caching
+     - [ ] Compression
 
 2. Drawing to the Screen
    - [x] Window Creating
@@ -30,9 +29,12 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [ ] Exercises (Optional)
      - [ ] Line breaks
      - [ ] Mouse wheel
-     - [ ] Emoji
      - [ ] Resizing
+     - [ ] Scrollbar
      - [ ] Zoom
+     - [ ] Emoji
+     - [ ] about:blank
+     - [ ] Alternate text direction
 
 3. Formatting Text
     - [x] Text Layout word by word
@@ -48,3 +50,16 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Preformatted text
 
 4. Constructing an HTML Tree
+    - [x] HTML parser
+    - [x] Handling attributes
+    - [x] Some fixes for malformed HTML
+    - [x] Recursive layout algorithm for tree
+    - [ ] Exercises (Optional)
+      - [ ] Comments
+      - [ ] Paragraphs
+      - [ ] Scripts
+      - [ ] Quoted attributes
+      - [ ] Syntax highlighting
+      - [ ] Mis-nested formatting tags
+
+5. Laying Out Pages
