@@ -112,3 +112,7 @@ func (u *URL) Request() string {
 	content := strings.Join(lines[lineNum:], "")
 	return content
 }
+
+func (u *URL) String() string {
+	return u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port) + u.path
+}
