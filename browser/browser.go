@@ -1,31 +1,25 @@
 package browser
 
 import (
+	"gowser/layout"
+	. "gowser/token"
 	"gowser/url"
 	"strings"
 
-	"modernc.org/tk9.0"
+	tk9_0 "modernc.org/tk9.0"
 )
 
 const (
-	DefaultWidth  = 800
-	DefaultHeight = 600
-	HSTEP         = 13
-	VSTEP         = 18
-	SCROLL_STEP = 100
+	DefaultWidth  = 800.
+	DefaultHeight = 600.
+	SCROLL_STEP   = 100.
 )
 
 type Browser struct {
 	window       *tk9_0.Window
 	canvas       *tk9_0.CanvasWidget
-	display_list []LayoutItem
-	scroll       int
-}
-
-type LayoutItem struct {
-	Char string
-	X    int
-	Y    int
+	display_list []layout.LayoutItem
+	scroll       float32
 }
 
 func NewBrowser() *Browser {
@@ -44,48 +38,44 @@ func NewBrowser() *Browser {
 func (b *Browser) Load(url *url.URL) {
 	body := url.Request()
 	text := lex(body)
-	b.display_list = layout(text)
+	b.display_list = layout.NewLayout(text).Display_list
 	b.Draw()
 }
 
 func (b *Browser) Draw() {
 	b.canvas.Delete("all")
 	for _, item := range b.display_list {
-		if item.Y > b.scroll + DefaultHeight {
+		if item.Y > b.scroll+DefaultHeight {
 			continue // Skip items that are outside the visible area
 		}
-		if item.Y + VSTEP < b.scroll {
+		if item.Y+layout.VSTEP < b.scroll {
 			continue // Skip items that are above the visible area
 		}
-		b.canvas.CreateText(item.X, item.Y - b.scroll, tk9_0.Txt(item.Char))
+		b.canvas.CreateText(item.X, item.Y-b.scroll, tk9_0.Txt(item.Word), tk9_0.Anchor("nw"), tk9_0.Font(item.Font))
 	}
 }
 
-func lex(body string) string {
-	text := strings.Builder{}
+func lex(body string) []Token {
+	tokens := []Token{}
+	buffer := strings.Builder{}
 	inTag := false
 	for _, char := range body {
 		if char == '<' {
 			inTag = true
+			if buffer.Len() > 0 {
+				tokens = append(tokens, TextToken{Text: buffer.String()})
+				buffer.Reset()
+			}
 		} else if char == '>' {
 			inTag = false
-		} else if !inTag {
-			text.WriteRune(char)
+			tokens = append(tokens, TagToken{Tag: buffer.String()})
+			buffer.Reset()
+		} else {
+			buffer.WriteRune(char)
 		}
 	}
-	return text.String()
-}
-
-func layout(text string) []LayoutItem {
-	layout := []LayoutItem{}
-	cursor_x, cursor_y := HSTEP, VSTEP
-	for _, char := range text {
-		layout = append(layout, LayoutItem{string(char), cursor_x, cursor_y})
-		cursor_x += HSTEP
-		if cursor_x >= DefaultWidth-HSTEP {
-			cursor_x = HSTEP
-			cursor_y += VSTEP
-		}
+	if !inTag && buffer.Len() > 0 {
+		tokens = append(tokens, TextToken{Text: buffer.String()})
 	}
-	return layout
+	return tokens
 }

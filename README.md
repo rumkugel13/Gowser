@@ -35,3 +35,16 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
      - [ ] Zoom
 
 3. Formatting Text
+    - [x] Text Layout word by word
+    - [x] Split lines at words
+    - [x] Text can be bold and italic
+    - [x] Text in different sizes can be mixed
+    - [X] Font Cache
+    - [ ] Exercises (Optional)
+      - [ ] Centered Text
+      - [ ] Superscripts
+      - [ ] Soft hyphens
+      - [ ] Small caps
+      - [ ] Preformatted text
+
+4. Constructing an HTML Tree

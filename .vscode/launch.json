@@ -10,7 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}",
-            "args": ["https://browser.engineering/examples/xiyouji.html", "https://browser.engineering/http.html"]
+            "output": "Gowser",
+            "args": ["https://browser.engineering/text.html"]
         }
     ]
 }
