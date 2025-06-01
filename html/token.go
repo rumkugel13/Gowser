@@ -35,6 +35,7 @@ func (t TextToken) String() string {
 
 type TagToken struct {
 	Tag string
+	Attributes map[string]string
 }
 
 func (t TagToken) Value() string {

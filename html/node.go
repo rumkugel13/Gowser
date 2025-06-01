@@ -1,21 +1,21 @@
 package html
 
-import "strings"
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Node struct {
-	Token Token
+	Token    Token
 	Children *[]Node
-	Parent *Node
-	Attributes map[string]string
+	Parent   *Node
 }
 
-func NewNode(token Token, attributes map[string]string, parent *Node) Node {
+func NewNode(token Token, parent *Node) Node {
 	return Node{
-		Token: token,
+		Token:    token,
 		Children: &[]Node{},
-		Parent: parent,
-		Attributes: attributes,
+		Parent:   parent,
 	}
 }
 
