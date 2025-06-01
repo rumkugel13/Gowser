@@ -181,7 +181,7 @@ func (l *BlockLayout) Layout() {
 }
 
 func (l *BlockLayout) String() string {
-	return fmt.Sprintf("BlockLayout(mode=%s, x=%f, y=%f, width=%f, height=%f, node=%v)", l.layout_mode(), l.x, l.y, l.width, l.height, l.node.Token)
+	return fmt.Sprintf("BlockLayout(mode=%s, x=%f, y=%f, width=%f, height=%f, node=%v, style=%v)", l.layout_mode(), l.x, l.y, l.width, l.height, l.node.Token, l.node.Style)
 }
 
 func (l *BlockLayout) Parent() *Layout {
@@ -210,11 +210,22 @@ func (l *BlockLayout) Height() float32 {
 
 func (l *BlockLayout) Paint() []Command {
 	cmds := make([]Command, 0)
-	if tag, ok := l.node.Token.(html.TagToken); ok && tag.Tag == "pre" {
+	// if tag, ok := l.node.Token.(html.TagToken); ok && tag.Tag == "pre" {
+	// 	x2, y2 := l.x+l.width, l.y+l.height
+	// 	rect := NewDrawRect(l.x, l.y, x2, y2, "gray")
+	// 	cmds = append(cmds, rect)
+	// }
+
+	bgcolor, ok := l.node.Style["background-color"]
+	if !ok {
+		bgcolor = "transparent"
+	}
+	if bgcolor != "transparent" && bgcolor != "" {
 		x2, y2 := l.x+l.width, l.y+l.height
-		rect := NewDrawRect(l.x, l.y, x2, y2, "gray")
+		rect := NewDrawRect(l.x, l.y, x2, y2, bgcolor)
 		cmds = append(cmds, rect)
 	}
+
 	if l.layout_mode() == "inline" {
 		for _, item := range l.display_list {
 			cmds = append(cmds, NewDrawText(item.X, item.Y, item.Word, item.Font))

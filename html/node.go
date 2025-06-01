@@ -9,6 +9,7 @@ type Node struct {
 	Token    Token
 	Children *[]Node
 	Parent   *Node
+	Style    map[string]string
 }
 
 func NewNode(token Token, parent *Node) Node {
@@ -16,6 +17,7 @@ func NewNode(token Token, parent *Node) Node {
 		Token:    token,
 		Children: &[]Node{},
 		Parent:   parent,
+		Style:    make(map[string]string),
 	}
 }
 

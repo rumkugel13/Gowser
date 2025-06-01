@@ -2,6 +2,7 @@ package browser
 
 import (
 	"fmt"
+	"gowser/css"
 	"gowser/html"
 	"gowser/layout"
 	"gowser/url"
@@ -50,11 +51,15 @@ func (b *Browser) Load(url *url.URL) {
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
+	css.Style(&nodes)
+	fmt.Println("Styling took:", time.Since(start))
+
+	start = time.Now()
 	b.document = layout.NewDocumentLayout(&nodes)
 	b.document.Layout()
+	// layout.PrintTree(b.document, 0)
 	b.display_list = make([]layout.Command, 0)
 	layout.PaintTree(b.document, &b.display_list)
-	// layout.PrintTree(b.document, 0)
 	// for _, cmd := range b.display_list {
 	// 	fmt.Println("Command:", cmd)
 	// }
