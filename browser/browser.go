@@ -19,8 +19,9 @@ const (
 type Browser struct {
 	window       *tk9_0.Window
 	canvas       *tk9_0.CanvasWidget
-	display_list []layout.LayoutItem
+	display_list []layout.Command
 	scroll       float32
+	document     *layout.DocumentLayout
 }
 
 func NewBrowser() *Browser {
@@ -30,7 +31,8 @@ func NewBrowser() *Browser {
 	tk9_0.Pack(browser.canvas)
 	browser.scroll = 0
 	tk9_0.Bind(tk9_0.App, "<Down>", tk9_0.Command(func() {
-		browser.scroll += SCROLL_STEP
+		max_y := max(browser.document.Height()+2*layout.VSTEP-DefaultHeight, 0)
+		browser.scroll = min(browser.scroll+SCROLL_STEP, max_y)
 		browser.Draw()
 	}))
 	return browser
@@ -44,11 +46,18 @@ func (b *Browser) Load(url *url.URL) {
 
 	start = time.Now()
 	nodes := html.NewHTMLParser(body).Parse()
+	// nodes.PrintTree(0)
 	fmt.Println("Parsing took:", time.Since(start))
 
-	// nodes.PrintTree(0)
 	start = time.Now()
-	b.display_list = layout.NewLayout(&nodes).Display_list
+	b.document = layout.NewDocumentLayout(&nodes)
+	b.document.Layout()
+	b.display_list = make([]layout.Command, 0)
+	layout.PaintTree(b.document, &b.display_list)
+	// layout.PrintTree(b.document, 0)
+	// for _, cmd := range b.display_list {
+	// 	fmt.Println("Command:", cmd)
+	// }
 	fmt.Println("Layout took:", time.Since(start))
 
 	start = time.Now()
@@ -58,13 +67,13 @@ func (b *Browser) Load(url *url.URL) {
 
 func (b *Browser) Draw() {
 	b.canvas.Delete("all")
-	for _, item := range b.display_list {
-		if item.Y > b.scroll+DefaultHeight {
+	for _, cmd := range b.display_list {
+		if cmd.Top() > b.scroll+DefaultHeight {
 			continue // Skip items that are outside the visible area
 		}
-		if item.Y+layout.VSTEP < b.scroll {
+		if cmd.Bottom() < b.scroll {
 			continue // Skip items that are above the visible area
 		}
-		b.canvas.CreateText(item.X, item.Y-b.scroll, tk9_0.Txt(item.Word), tk9_0.Anchor("nw"), tk9_0.Font(item.Font))
+		cmd.Execute(b.scroll, *b.canvas)
 	}
 }

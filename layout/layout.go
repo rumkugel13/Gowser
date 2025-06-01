@@ -1,7 +1,9 @@
 package layout
 
 import (
-	. "gowser/html"
+	"fmt"
+	"gowser/html"
+	"slices"
 	"strings"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -12,6 +14,15 @@ const (
 	VSTEP        = 18.
 	DefaultWidth = 800.
 )
+
+var BLOCK_ELEMENTS = []string{
+	"html", "body", "article", "section", "nav", "aside",
+	"h1", "h2", "h3", "h4", "h5", "h6", "hgroup", "header",
+	"footer", "address", "p", "hr", "pre", "blockquote",
+	"ol", "ul", "menu", "li", "dl", "dt", "dd", "figure",
+	"figcaption", "main", "div", "table", "form", "fieldset",
+	"legend", "details", "summary",
+}
 
 type LayoutItem struct {
 	Word string
@@ -26,36 +37,216 @@ type LineItem struct {
 	Font *tk9_0.FontFace
 }
 
-type Layout struct {
-	Display_list       []LayoutItem
-	cursor_x, cursor_y float32
-	weight, style      string
-	size               float32
-	Line               []LineItem
+type Layout interface {
+	Layout()
+	String() string
+	Parent() *Layout
+	Children() *[]Layout
+	X() float32
+	Y() float32
+	Width() float32
+	Height() float32
+	Paint() []Command
 }
 
-func NewLayout(tree *Node) *Layout {
-	layout := &Layout{
-		Display_list: make([]LayoutItem, 0),
+type DocumentLayout struct {
+	node                *html.Node
+	parent              *Layout
+	children            []Layout
+	x, y, width, height float32
+}
+
+func NewDocumentLayout(node *html.Node) *DocumentLayout {
+	return &DocumentLayout{
+		node:     node,
+		parent:   nil,
+		children: make([]Layout, 0),
+	}
+}
+
+func (d *DocumentLayout) Layout() {
+	child := NewBlockLayout(d.node, d, nil)
+	d.children = append(d.children, child)
+
+	d.width = DefaultWidth - 2*HSTEP
+	d.x = HSTEP
+	d.y = VSTEP
+	child.Layout()
+	d.height = child.Height()
+}
+
+func (d *DocumentLayout) String() string {
+	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.x, d.y, d.width, d.height)
+}
+
+func (d *DocumentLayout) Parent() *Layout {
+	return d.parent
+}
+
+func (d *DocumentLayout) Children() *[]Layout {
+	return &d.children
+}
+
+func (d *DocumentLayout) X() float32 {
+	return d.x
+}
+
+func (d *DocumentLayout) Y() float32 {
+	return d.y
+}
+
+func (d *DocumentLayout) Width() float32 {
+	return d.width
+}
+
+func (d *DocumentLayout) Height() float32 {
+	return d.height
+}
+
+func (d *DocumentLayout) Paint() []Command {
+	return []Command{}
+}
+
+type BlockLayout struct {
+	display_list        []LayoutItem
+	cursor_x, cursor_y  float32
+	weight, style       string
+	size                float32
+	Line                []LineItem
+	node                *html.Node
+	parent, previous    *Layout
+	children            []Layout
+	x, y, width, height float32
+}
+
+func NewBlockLayout(tree *html.Node, parent Layout, previous Layout) *BlockLayout {
+	layout := &BlockLayout{
+		display_list: make([]LayoutItem, 0),
 		cursor_x:     float32(HSTEP),
 		cursor_y:     float32(VSTEP),
-		style:        tk9_0.ROMAN,
 		weight:       tk9_0.NORMAL,
+		style:        tk9_0.ROMAN,
 		size:         12,
 		Line:         make([]LineItem, 0),
+		node:         tree,
+		parent:       &parent,
+		previous:     &previous,
+		children:     make([]Layout, 0),
 	}
-	layout.recurse(tree)
-	layout.flush()
 	return layout
 }
 
-func (l *Layout) recurse(node *Node) {
-	if text, ok := node.Token.(TextToken); ok {
+func (l *BlockLayout) Layout() {
+	if *l.previous != nil {
+		l.y = (*l.previous).Y() + (*l.previous).Height()
+	} else {
+		l.y = (*l.parent).Y()
+	}
+	l.x = (*l.parent).X()
+	l.width = (*l.parent).Width()
+
+	mode := l.layout_mode()
+	if mode == "block" {
+		var previous Layout
+		for _, child := range *l.node.Children {
+			next := NewBlockLayout(&child, l, previous)
+			l.children = append(l.children, next)
+			previous = next
+		}
+	} else {
+		l.cursor_x = 0
+		l.cursor_y = 0
+		l.weight = tk9_0.NORMAL
+		l.style = tk9_0.ROMAN
+		l.size = 12
+
+		l.Line = make([]LineItem, 0)
+		l.recurse(l.node)
+		l.flush()
+	}
+
+	for _, child := range l.children {
+		child.Layout()
+	}
+
+	if mode == "block" {
+		var totalHeight float32
+		for _, child := range l.children {
+			totalHeight += child.Height()
+		}
+		l.height = totalHeight
+	} else {
+		l.height = l.cursor_y
+	}
+}
+
+func (l *BlockLayout) String() string {
+	return fmt.Sprintf("BlockLayout(mode=%s, x=%f, y=%f, width=%f, height=%f, node=%v)", l.layout_mode(), l.x, l.y, l.width, l.height, l.node.Token)
+}
+
+func (l *BlockLayout) Parent() *Layout {
+	return l.parent
+}
+
+func (l *BlockLayout) Children() *[]Layout {
+	return &l.children
+}
+
+func (l *BlockLayout) X() float32 {
+	return l.x
+}
+
+func (l *BlockLayout) Y() float32 {
+	return l.y
+}
+
+func (l *BlockLayout) Width() float32 {
+	return l.width
+}
+
+func (l *BlockLayout) Height() float32 {
+	return l.height
+}
+
+func (l *BlockLayout) Paint() []Command {
+	cmds := make([]Command, 0)
+	if tag, ok := l.node.Token.(html.TagToken); ok && tag.Tag == "pre" {
+		x2, y2 := l.x+l.width, l.y+l.height
+		rect := NewDrawRect(l.x, l.y, x2, y2, "gray")
+		cmds = append(cmds, rect)
+	}
+	if l.layout_mode() == "inline" {
+		for _, item := range l.display_list {
+			cmds = append(cmds, NewDrawText(item.X, item.Y, item.Word, item.Font))
+		}
+	}
+	return cmds
+}
+
+func (l *BlockLayout) layout_mode() string {
+	if _, ok := l.node.Token.(html.TextToken); ok {
+		return "inline"
+	} else {
+		for _, child := range *l.node.Children {
+			if elem, ok := child.Token.(html.TagToken); ok && slices.Contains(BLOCK_ELEMENTS, elem.Tag) {
+				return "block"
+			}
+		}
+		if len(*l.node.Children) > 0 {
+			return "inline"
+		} else {
+			return "block"
+		}
+	}
+}
+
+func (l *BlockLayout) recurse(node *html.Node) {
+	if text, ok := node.Token.(html.TextToken); ok {
 		words := strings.Fields(text.Text)
 		for _, word := range words {
 			l.word(word)
 		}
-	} else if tag, ok := node.Token.(TagToken); ok {
+	} else if tag, ok := node.Token.(html.TagToken); ok {
 		l.open_tag(tag.Tag)
 		for _, child := range *node.Children {
 			l.recurse(&child)
@@ -64,7 +255,7 @@ func (l *Layout) recurse(node *Node) {
 	}
 }
 
-func (l *Layout) open_tag(tag string) {
+func (l *BlockLayout) open_tag(tag string) {
 	if tag == "i" {
 		l.style = tk9_0.ITALIC
 	} else if tag == "b" {
@@ -78,7 +269,7 @@ func (l *Layout) open_tag(tag string) {
 	}
 }
 
-func (l *Layout) close_tag(tag string) {
+func (l *BlockLayout) close_tag(tag string) {
 	if tag == "i" {
 		l.style = tk9_0.ROMAN
 	} else if tag == "b" {
@@ -93,17 +284,17 @@ func (l *Layout) close_tag(tag string) {
 	}
 }
 
-func (l *Layout) word(word string) {
+func (l *BlockLayout) word(word string) {
 	font := GetFont(l.size, l.weight, l.style)
 	width := measure(font, word)
-	if l.cursor_x+width >= DefaultWidth-HSTEP {
+	if l.cursor_x+width > l.width {
 		l.flush()
 	}
 	l.Line = append(l.Line, LineItem{l.cursor_x, word, font})
 	l.cursor_x += width + measure(font, " ")
 }
 
-func (l *Layout) flush() {
+func (l *BlockLayout) flush() {
 	if len(l.Line) == 0 {
 		return
 	}
@@ -114,10 +305,10 @@ func (l *Layout) flush() {
 
 	baseline := l.cursor_y + maxAscent*1.25
 	for _, item := range l.Line {
-		l.Display_list = append(l.Display_list, LayoutItem{
+		l.display_list = append(l.display_list, LayoutItem{
 			Word: item.Word,
-			X:    item.X,
-			Y:    baseline - float32(item.Font.MetricsAscent(tk9_0.App)),
+			X:    l.x + item.X,
+			Y:    l.y + baseline - float32(item.Font.MetricsAscent(tk9_0.App)),
 			Font: item.Font,
 		})
 	}
@@ -127,7 +318,7 @@ func (l *Layout) flush() {
 		maxDescent = max(maxDescent, float32(item.Font.MetricsDescent(tk9_0.App)))
 	}
 	l.cursor_y = baseline + maxDescent*1.25
-	l.cursor_x = float32(HSTEP)
+	l.cursor_x = 0
 	l.Line = make([]LineItem, 0)
 }
 
@@ -156,4 +347,18 @@ func measure(font *tk9_0.FontFace, text string) float32 {
 		}
 	}
 	return width
+}
+
+func PaintTree(l Layout, displayList *[]Command) {
+	*displayList = append(*displayList, l.Paint()...)
+	for _, child := range *l.Children() {
+		PaintTree(child, displayList)
+	}
+}
+
+func PrintTree(l Layout, indent int) {
+	fmt.Println(strings.Repeat(" ", indent) + l.String())
+	for _, child := range *l.Children() {
+		PrintTree(child, indent+2)
+	}
 }

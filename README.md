@@ -63,3 +63,17 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Mis-nested formatting tags
 
 5. Laying Out Pages
+    - [x] Tree based layout
+    - [x] Layoutmodes in nodes (block/inline)
+    - [x] Layout computes size and position
+    - [x] Displaylist contains commands
+    - [x] Source code snippets have background
+    - [ ] Exercises (Optional)
+      - [ ] Links bar
+      - [ ] Hidden head
+      - [ ] Bullets
+      - [ ] Table of Contents
+      - [ ] Anonymous block boxes
+      - [ ] Run-ins
+
+6. Applying Author Styles
