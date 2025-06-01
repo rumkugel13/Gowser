@@ -5,7 +5,7 @@ import (
 )
 
 type Selector interface {
-	Matches(node html.Node) bool
+	Matches(node *html.Node) bool
 	Priority() int
 }
 
@@ -18,7 +18,7 @@ func NewTagSelector(tag string) *TagSelector {
 	return &TagSelector{Tag: tag, priority: 1}
 }
 
-func (s *TagSelector) Matches(node html.Node) bool {
+func (s *TagSelector) Matches(node *html.Node) bool {
 	if tag, ok := node.Token.(html.TagToken); ok {
 		return tag.Tag == s.Tag
 	}
@@ -43,15 +43,15 @@ func NewDescendantSelector(ancestor Selector, descendant Selector) *DescendantSe
 	}
 }
 
-func (s *DescendantSelector) Matches(node html.Node) bool {
+func (s *DescendantSelector) Matches(node *html.Node) bool {
 	if !s.Descendant.Matches(node) {
 		return false
 	}
 	for node.Parent != nil {
-		if s.Ancestor.Matches(*node.Parent) {
+		if s.Ancestor.Matches(node.Parent) {
 			return true
 		}
-		node = *node.Parent
+		node = node.Parent
 	}
 	return false
 }

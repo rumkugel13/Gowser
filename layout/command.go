@@ -17,20 +17,22 @@ type DrawText struct {
 	top, left, bottom float32
 	text              string
 	font              *tk9_0.FontFace
+	color             string
 }
 
-func NewDrawText(x1, y1 float32, text string, font *tk9_0.FontFace) *DrawText {
+func NewDrawText(x1, y1 float32, text string, font *tk9_0.FontFace, color string) *DrawText {
 	return &DrawText{
 		top:    y1,
 		left:   x1,
+		bottom: y1 + float32(font.MetricsLinespace(tk9_0.App)),
 		text:   text,
 		font:   font,
-		bottom: y1 + float32(font.MetricsLinespace(tk9_0.App)),
+		color:  color,
 	}
 }
 
 func (d *DrawText) Execute(scroll float32, canvas tk9_0.CanvasWidget) {
-	canvas.CreateText(d.left, d.top-scroll, tk9_0.Txt(d.text), tk9_0.Anchor("nw"), tk9_0.Font(d.font))
+	canvas.CreateText(d.left, d.top-scroll, tk9_0.Txt(d.text), tk9_0.Anchor("nw"), tk9_0.Font(d.font), tk9_0.Fill(d.color))
 }
 
 func (d *DrawText) Top() float32 {

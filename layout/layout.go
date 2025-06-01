@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gowser/html"
 	"slices"
+	"strconv"
 	"strings"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -25,23 +26,25 @@ var BLOCK_ELEMENTS = []string{
 }
 
 type LayoutItem struct {
-	Word string
-	X    float32
-	Y    float32
-	Font *tk9_0.FontFace
+	Word  string
+	X     float32
+	Y     float32
+	Font  *tk9_0.FontFace
+	Color string
 }
 
 type LineItem struct {
-	X    float32
-	Word string
-	Font *tk9_0.FontFace
+	X     float32
+	Word  string
+	Font  *tk9_0.FontFace
+	Color string
 }
 
 type Layout interface {
 	Layout()
 	String() string
-	Parent() *Layout
-	Children() *[]Layout
+	Parent() Layout
+	Children() []Layout
 	X() float32
 	Y() float32
 	Width() float32
@@ -51,7 +54,7 @@ type Layout interface {
 
 type DocumentLayout struct {
 	node                *html.Node
-	parent              *Layout
+	parent              Layout
 	children            []Layout
 	x, y, width, height float32
 }
@@ -60,7 +63,7 @@ func NewDocumentLayout(node *html.Node) *DocumentLayout {
 	return &DocumentLayout{
 		node:     node,
 		parent:   nil,
-		children: make([]Layout, 0),
+		children: []Layout{},
 	}
 }
 
@@ -79,12 +82,12 @@ func (d *DocumentLayout) String() string {
 	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.x, d.y, d.width, d.height)
 }
 
-func (d *DocumentLayout) Parent() *Layout {
+func (d *DocumentLayout) Parent() Layout {
 	return d.parent
 }
 
-func (d *DocumentLayout) Children() *[]Layout {
-	return &d.children
+func (d *DocumentLayout) Children() []Layout {
+	return d.children
 }
 
 func (d *DocumentLayout) X() float32 {
@@ -110,11 +113,9 @@ func (d *DocumentLayout) Paint() []Command {
 type BlockLayout struct {
 	display_list        []LayoutItem
 	cursor_x, cursor_y  float32
-	weight, style       string
-	size                float32
 	Line                []LineItem
 	node                *html.Node
-	parent, previous    *Layout
+	parent, previous    Layout
 	children            []Layout
 	x, y, width, height float32
 }
@@ -124,41 +125,35 @@ func NewBlockLayout(tree *html.Node, parent Layout, previous Layout) *BlockLayou
 		display_list: make([]LayoutItem, 0),
 		cursor_x:     float32(HSTEP),
 		cursor_y:     float32(VSTEP),
-		weight:       tk9_0.NORMAL,
-		style:        tk9_0.ROMAN,
-		size:         12,
 		Line:         make([]LineItem, 0),
 		node:         tree,
-		parent:       &parent,
-		previous:     &previous,
-		children:     make([]Layout, 0),
+		parent:       parent,
+		previous:     previous,
+		children:     []Layout{},
 	}
 	return layout
 }
 
 func (l *BlockLayout) Layout() {
-	if *l.previous != nil {
-		l.y = (*l.previous).Y() + (*l.previous).Height()
+	if l.previous != nil {
+		l.y = l.previous.Y() + l.previous.Height()
 	} else {
-		l.y = (*l.parent).Y()
+		l.y = l.parent.Y()
 	}
-	l.x = (*l.parent).X()
-	l.width = (*l.parent).Width()
+	l.x = l.parent.X()
+	l.width = l.parent.Width()
 
 	mode := l.layout_mode()
 	if mode == "block" {
 		var previous Layout
-		for _, child := range *l.node.Children {
-			next := NewBlockLayout(&child, l, previous)
+		for _, child := range l.node.Children {
+			next := NewBlockLayout(child, l, previous)
 			l.children = append(l.children, next)
 			previous = next
 		}
 	} else {
 		l.cursor_x = 0
 		l.cursor_y = 0
-		l.weight = tk9_0.NORMAL
-		l.style = tk9_0.ROMAN
-		l.size = 12
 
 		l.Line = make([]LineItem, 0)
 		l.recurse(l.node)
@@ -184,12 +179,12 @@ func (l *BlockLayout) String() string {
 	return fmt.Sprintf("BlockLayout(mode=%s, x=%f, y=%f, width=%f, height=%f, node=%v, style=%v)", l.layout_mode(), l.x, l.y, l.width, l.height, l.node.Token, l.node.Style)
 }
 
-func (l *BlockLayout) Parent() *Layout {
+func (l *BlockLayout) Parent() Layout {
 	return l.parent
 }
 
-func (l *BlockLayout) Children() *[]Layout {
-	return &l.children
+func (l *BlockLayout) Children() []Layout {
+	return l.children
 }
 
 func (l *BlockLayout) X() float32 {
@@ -210,11 +205,6 @@ func (l *BlockLayout) Height() float32 {
 
 func (l *BlockLayout) Paint() []Command {
 	cmds := make([]Command, 0)
-	// if tag, ok := l.node.Token.(html.TagToken); ok && tag.Tag == "pre" {
-	// 	x2, y2 := l.x+l.width, l.y+l.height
-	// 	rect := NewDrawRect(l.x, l.y, x2, y2, "gray")
-	// 	cmds = append(cmds, rect)
-	// }
 
 	bgcolor, ok := l.node.Style["background-color"]
 	if !ok {
@@ -228,7 +218,7 @@ func (l *BlockLayout) Paint() []Command {
 
 	if l.layout_mode() == "inline" {
 		for _, item := range l.display_list {
-			cmds = append(cmds, NewDrawText(item.X, item.Y, item.Word, item.Font))
+			cmds = append(cmds, NewDrawText(item.X, item.Y, item.Word, item.Font, item.Color))
 		}
 	}
 	return cmds
@@ -238,12 +228,12 @@ func (l *BlockLayout) layout_mode() string {
 	if _, ok := l.node.Token.(html.TextToken); ok {
 		return "inline"
 	} else {
-		for _, child := range *l.node.Children {
+		for _, child := range l.node.Children {
 			if elem, ok := child.Token.(html.TagToken); ok && slices.Contains(BLOCK_ELEMENTS, elem.Tag) {
 				return "block"
 			}
 		}
-		if len(*l.node.Children) > 0 {
+		if len(l.node.Children) > 0 {
 			return "inline"
 		} else {
 			return "block"
@@ -255,53 +245,38 @@ func (l *BlockLayout) recurse(node *html.Node) {
 	if text, ok := node.Token.(html.TextToken); ok {
 		words := strings.Fields(text.Text)
 		for _, word := range words {
-			l.word(word)
+			l.word(node, word)
 		}
-	} else if tag, ok := node.Token.(html.TagToken); ok {
-		l.open_tag(tag.Tag)
-		for _, child := range *node.Children {
-			l.recurse(&child)
+	} else {
+		if tag, ok := node.Token.(html.TagToken); ok && tag.Tag == "br" {
+			l.flush()
 		}
-		l.close_tag(tag.Tag)
+		for _, child := range node.Children {
+			l.recurse(child)
+		}
 	}
 }
 
-func (l *BlockLayout) open_tag(tag string) {
-	if tag == "i" {
-		l.style = tk9_0.ITALIC
-	} else if tag == "b" {
-		l.weight = tk9_0.BOLD
-	} else if tag == "small" {
-		l.size -= 2
-	} else if tag == "big" {
-		l.size += 4
-	} else if tag == "br" {
-		l.flush()
+func (l *BlockLayout) word(node *html.Node, word string) {
+	weight := node.Style["font-weight"]
+	style := node.Style["font-style"]
+	if style == "normal" {
+		style = "roman"
 	}
-}
-
-func (l *BlockLayout) close_tag(tag string) {
-	if tag == "i" {
-		l.style = tk9_0.ROMAN
-	} else if tag == "b" {
-		l.weight = tk9_0.NORMAL
-	} else if tag == "small" {
-		l.size += 2
-	} else if tag == "big" {
-		l.size -= 4
-	} else if tag == "p" {
-		l.flush()
-		l.cursor_y += float32(VSTEP)
+	fSize, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"], "px"), 32)
+	if err != nil {
+		fSize = 16 // Default font size if parsing fails
 	}
-}
+	size := int(float32(fSize) * 0.75)
 
-func (l *BlockLayout) word(word string) {
-	font := GetFont(l.size, l.weight, l.style)
+	font := GetFont(size, weight, style)
 	width := measure(font, word)
 	if l.cursor_x+width > l.width {
 		l.flush()
 	}
-	l.Line = append(l.Line, LineItem{l.cursor_x, word, font})
+
+	color := node.Style["color"]
+	l.Line = append(l.Line, LineItem{l.cursor_x, word, font, color})
 	l.cursor_x += width + measure(font, " ")
 }
 
@@ -317,10 +292,11 @@ func (l *BlockLayout) flush() {
 	baseline := l.cursor_y + maxAscent*1.25
 	for _, item := range l.Line {
 		l.display_list = append(l.display_list, LayoutItem{
-			Word: item.Word,
-			X:    l.x + item.X,
-			Y:    l.y + baseline - float32(item.Font.MetricsAscent(tk9_0.App)),
-			Font: item.Font,
+			Word:  item.Word,
+			X:     l.x + item.X,
+			Y:     l.y + baseline - float32(item.Font.MetricsAscent(tk9_0.App)),
+			Font:  item.Font,
+			Color: item.Color,
 		})
 	}
 
@@ -362,21 +338,21 @@ func measure(font *tk9_0.FontFace, text string) float32 {
 
 func PaintTree(l Layout, displayList *[]Command) {
 	*displayList = append(*displayList, l.Paint()...)
-	for _, child := range *l.Children() {
+	for _, child := range l.Children() {
 		PaintTree(child, displayList)
 	}
 }
 
 func PrintTree(l Layout, indent int) {
 	fmt.Println(strings.Repeat(" ", indent) + l.String())
-	for _, child := range *l.Children() {
+	for _, child := range l.Children() {
 		PrintTree(child, indent+2)
 	}
 }
 
 func TreeToList(tree Layout, list *[]Layout) []Layout {
 	*list = append(*list, tree)
-	for _, child := range *tree.Children() {
+	for _, child := range tree.Children() {
 		TreeToList(child, list)
 	}
 	return *list

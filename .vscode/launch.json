@@ -11,7 +11,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "output": "Gowser",
-            "args": ["https://browser.engineering/styles.html"]
+            "args": ["https://browser.engineering/", "https://browser.engineering/styles.html"]
         }
     ]
 }

@@ -9,17 +9,17 @@ var (
 )
 
 type FontKey struct {
-	Size float32
+	Size   int
 	Weight string
-	Style string
+	Style  string
 }
 
 type FontItem struct {
-	Font *tk9_0.FontFace
+	Font  *tk9_0.FontFace
 	Label string
 }
 
-func GetFont(size float32, weight, style string) *tk9_0.FontFace {
+func GetFont(size int, weight, style string) *tk9_0.FontFace {
 	key := FontKey{Size: size, Weight: weight, Style: style}
 	if fontItem, exists := FONT_CACHE[key]; exists {
 		return fontItem.Font

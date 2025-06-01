@@ -35,7 +35,7 @@ type Browser struct {
 func NewBrowser() *Browser {
 	load_default_style_sheet()
 	browser := &Browser{}
-	browser.canvas = tk9_0.Canvas(tk9_0.Width(DefaultWidth), tk9_0.Height(DefaultHeight))
+	browser.canvas = tk9_0.Canvas(tk9_0.Width(DefaultWidth), tk9_0.Height(DefaultHeight), tk9_0.Background("white"))
 	browser.window = tk9_0.App.Center()
 	tk9_0.Pack(browser.canvas)
 	browser.scroll = 0

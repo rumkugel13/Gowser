@@ -77,3 +77,21 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Run-ins
 
 6. Applying Author Styles
+    - [x] Add CSS parser
+    - [x] Add support for style attributes and linked CSS files
+    - [x] Implement cascading and inheritance
+    - [x] Refactor BlockLayout to move the font properties to CSS
+    - [x] Move most tag-specific reasoning to a browser style sheet
+    - [ ] Exercises (Optional)
+      - [ ] Fonts (font-family)
+      - [ ] Width/Height
+      - [ ] Class selectors
+      - [ ] display property
+      - [ ] Shorthand Properties
+      - [ ] Inline Style Sheets
+      - [ ] Fast Descendant Selectors
+      - [ ] Selector Sequences
+      - [ ] !important
+      - [ ] :has selectors
+
+7. Handling Buttons and Links

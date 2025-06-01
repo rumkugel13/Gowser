@@ -16,13 +16,13 @@ var (
 
 type HTMLParser struct {
 	body       string
-	unfinished []Node
+	unfinished []*Node
 }
 
 func NewHTMLParser(body string) *HTMLParser {
 	return &HTMLParser{
 		body:       body,
-		unfinished: []Node{},
+		unfinished: []*Node{},
 	}
 }
 
@@ -56,8 +56,8 @@ func (p *HTMLParser) add_text(text string) {
 	}
 	p.implicit_tags("")
 	parent := p.unfinished[len(p.unfinished)-1]
-	node := NewNode(TextToken{Text: text}, &parent)
-	*parent.Children = append(*parent.Children, node)
+	node := NewNode(TextToken{Text: text}, parent)
+	parent.Children = append(parent.Children, node)
 }
 
 func (p *HTMLParser) add_tag(tag string) {
@@ -66,6 +66,7 @@ func (p *HTMLParser) add_tag(tag string) {
 		return
 	}
 	p.implicit_tags(tag)
+
 	if strings.HasPrefix(tag, "/") {
 		if len(p.unfinished) == 1 {
 			return
@@ -73,17 +74,17 @@ func (p *HTMLParser) add_tag(tag string) {
 		node := p.unfinished[len(p.unfinished)-1]
 		p.unfinished = p.unfinished[:len(p.unfinished)-1] // pop
 		parent := p.unfinished[len(p.unfinished)-1]
-		*parent.Children = append(*parent.Children, node)
+		parent.Children = append(parent.Children, node)
 	} else if slices.Contains(VOID_TAGS, tag) {
 		parent := p.unfinished[len(p.unfinished)-1]
-		node := NewNode(TagToken{Tag: tag, Attributes: attributes}, &parent)
-		*parent.Children = append(*parent.Children, node)
+		node := NewNode(TagToken{Tag: tag, Attributes: attributes}, parent)
+		parent.Children = append(parent.Children, node)
 	} else {
 		var parent *Node
 		if len(p.unfinished) == 0 {
 			parent = nil
 		} else {
-			parent = &p.unfinished[len(p.unfinished)-1]
+			parent = p.unfinished[len(p.unfinished)-1]
 		}
 		node := NewNode(TagToken{Tag: tag, Attributes: attributes}, parent)
 		p.unfinished = append(p.unfinished, node)
@@ -98,11 +99,11 @@ func (p *HTMLParser) finish() *Node {
 		node := p.unfinished[len(p.unfinished)-1]
 		p.unfinished = p.unfinished[:len(p.unfinished)-1] // pop
 		parent := p.unfinished[len(p.unfinished)-1]
-		*parent.Children = append(*parent.Children, node)
+		parent.Children = append(parent.Children, node)
 	}
 	node := p.unfinished[len(p.unfinished)-1]
 	p.unfinished = p.unfinished[:len(p.unfinished)-1] // pop
-	return &node
+	return node
 }
 
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
