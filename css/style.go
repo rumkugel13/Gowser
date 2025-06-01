@@ -5,7 +5,14 @@ import (
 	"maps"
 )
 
-func Style(node *html.Node) {
+func Style(node *html.Node, rules map[Selector]map[string]string) {
+	for selector, styles := range rules {
+		if !selector.Matches(*node) {
+			continue
+		}
+		maps.Copy(node.Style, styles)
+	}
+
 	if tag, ok := node.Token.(html.TagToken); ok {
 		if style, exists := tag.Attributes["style"]; exists {
 			parser := NewCSSParser(style)
@@ -15,6 +22,6 @@ func Style(node *html.Node) {
 	}
 
 	for _, child := range *node.Children {
-		Style(&child)
+		Style(&child, rules)
 	}
 }

@@ -27,3 +27,11 @@ func (n *Node) PrintTree(indent int) {
 		child.PrintTree(indent + 2)
 	}
 }
+
+func TreeToList(tree *Node, list *[]Node) []Node {
+	*list = append(*list, *tree)
+	for _, child := range *tree.Children {
+		TreeToList(&child, list)
+	}
+	return *list
+}

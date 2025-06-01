@@ -26,7 +26,7 @@ func NewHTMLParser(body string) *HTMLParser {
 	}
 }
 
-func (p *HTMLParser) Parse() Node {
+func (p *HTMLParser) Parse() *Node {
 	buffer := strings.Builder{}
 	inTag := false
 	for _, char := range p.body {
@@ -90,7 +90,7 @@ func (p *HTMLParser) add_tag(tag string) {
 	}
 }
 
-func (p *HTMLParser) finish() Node {
+func (p *HTMLParser) finish() *Node {
 	if len(p.unfinished) == 0 {
 		p.implicit_tags("")
 	}
@@ -102,7 +102,7 @@ func (p *HTMLParser) finish() Node {
 	}
 	node := p.unfinished[len(p.unfinished)-1]
 	p.unfinished = p.unfinished[:len(p.unfinished)-1] // pop
-	return node
+	return &node
 }
 
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {

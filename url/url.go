@@ -116,3 +116,29 @@ func (u *URL) Request() string {
 func (u *URL) String() string {
 	return u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port) + u.path
 }
+
+func (u *URL) Resolve(link_url string) *URL {
+	if strings.Contains(link_url, "://") {
+		return NewURL(link_url)
+	}
+	if !strings.HasPrefix(link_url, "/") {
+		if i := strings.LastIndex(u.path, "/"); i != -1 {
+			dir := u.path[:i]
+			for strings.HasPrefix(link_url, "../") {
+				split := strings.SplitN(link_url, "/", 2)
+				link_url = split[1]
+				if strings.Contains(dir, "/") {
+					if i := strings.LastIndex(u.path, "/"); i != -1 {
+						dir = dir[:i]
+					}
+				}
+			}
+			link_url = dir + "/" + link_url
+		}
+	}
+	if strings.HasPrefix(link_url, "//") {
+		return NewURL(u.scheme + ":" + link_url)
+	} else {
+		return NewURL(u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port) + link_url)
+	}
+}

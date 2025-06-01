@@ -373,3 +373,11 @@ func PrintTree(l Layout, indent int) {
 		PrintTree(child, indent+2)
 	}
 }
+
+func TreeToList(tree Layout, list *[]Layout) []Layout {
+	*list = append(*list, tree)
+	for _, child := range *tree.Children() {
+		TreeToList(child, list)
+	}
+	return *list
+}

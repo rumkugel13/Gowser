@@ -58,13 +58,13 @@ func (p *CSSParser) pair() (string, string) {
 
 func (p *CSSParser) body() map[string]string {
 	pairs := make(map[string]string)
-	for p.i < len(p.style) {
+	for p.i < len(p.style) && p.style[p.i] != '}' {
 		shouldBreak := false
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					// this represents the catch block
-					why := p.ignore_until(';')
+					why := p.ignore_until(';', '}')
 					if why == ';' {
 						p.literal(';')
 						p.whitespace()
@@ -96,4 +96,49 @@ func (p *CSSParser) ignore_until(chars ...rune) rune {
 		}
 	}
 	return 0
+}
+
+func (p *CSSParser) selector() Selector {
+	var out Selector = NewTagSelector(strings.ToLower(p.word()))
+	p.whitespace()
+	for p.i < len(p.style) && p.style[p.i] != '{' {
+		tag := p.word()
+		descendant := NewTagSelector(strings.ToLower(tag))
+		out = NewDescendantSelector(out, descendant)
+		p.whitespace()
+	}
+	return out
+}
+
+func (p *CSSParser) Parse() map[Selector]map[string]string {
+	rules := make(map[Selector]map[string]string)
+	for p.i < len(p.style) {
+		shouldBreak := false
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// catch block
+					why := p.ignore_until('}')
+					if why == '}' {
+						p.literal('}')
+						p.whitespace()
+					} else {
+						shouldBreak = true
+					}
+				}
+			}()
+			// try block
+			p.whitespace()
+			selector := p.selector()
+			p.literal('{')
+			p.whitespace()
+			body := p.body()
+			p.literal('}')
+			rules[selector] = body
+		}()
+		if shouldBreak {
+			break
+		}
+	}
+	return rules
 }

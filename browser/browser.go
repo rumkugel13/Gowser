@@ -6,6 +6,8 @@ import (
 	"gowser/html"
 	"gowser/layout"
 	"gowser/url"
+	"maps"
+	"os"
 	"time"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -17,6 +19,10 @@ const (
 	SCROLL_STEP   = 100.
 )
 
+var (
+	DEFAULT_STYLE_SHEET map[css.Selector]map[string]string
+)
+
 type Browser struct {
 	window       *tk9_0.Window
 	canvas       *tk9_0.CanvasWidget
@@ -26,6 +32,7 @@ type Browser struct {
 }
 
 func NewBrowser() *Browser {
+	load_default_style_sheet()
 	browser := &Browser{}
 	browser.canvas = tk9_0.Canvas(tk9_0.Width(DefaultWidth), tk9_0.Height(DefaultHeight))
 	browser.window = tk9_0.App.Center()
@@ -51,11 +58,31 @@ func (b *Browser) Load(url *url.URL) {
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
-	css.Style(&nodes)
+	rules := maps.Clone(DEFAULT_STYLE_SHEET)
+	links := b.links(nodes)
+	for _, link := range links {
+		style_url := url.Resolve(link)
+		fmt.Println("Loading stylesheet:", style_url)
+		var style_body string
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Println("Recovered from panic:", r)
+					// Handle the error, e.g., set a default style or log the error
+					style_body = "" // Ensure style_body is an empty string to avoid further errors
+				}
+			}()
+			style_body = style_url.Request()
+		}()
+		if style_body != "" {
+			maps.Copy(rules, css.NewCSSParser(style_body).Parse())
+		}
+	}
+	css.Style(nodes, rules)
 	fmt.Println("Styling took:", time.Since(start))
 
 	start = time.Now()
-	b.document = layout.NewDocumentLayout(&nodes)
+	b.document = layout.NewDocumentLayout(nodes)
 	b.document.Layout()
 	// layout.PrintTree(b.document, 0)
 	b.display_list = make([]layout.Command, 0)
@@ -81,4 +108,31 @@ func (b *Browser) Draw() {
 		}
 		cmd.Execute(b.scroll, *b.canvas)
 	}
+}
+
+func (b *Browser) links(nodes *html.Node) []string {
+	flatNodes := html.TreeToList(nodes, &[]html.Node{})
+	links := []string{}
+	for _, node := range flatNodes {
+		if tag, ok := node.Token.(html.TagToken); ok && tag.Tag == "link" {
+			if rel, exists := tag.Attributes["rel"]; exists && rel == "stylesheet" {
+				if href, exists := tag.Attributes["href"]; exists {
+					links = append(links, href)
+				}
+			}
+		}
+	}
+	return links
+}
+
+func load_default_style_sheet() {
+	data, err := os.ReadFile("browser.css")
+	if err != nil {
+		fmt.Println("Error loading default style sheet:", err)
+		return
+	}
+
+	fmt.Println("Loading default style sheet from browser.css")
+	parser := css.NewCSSParser(string(data))
+	DEFAULT_STYLE_SHEET = parser.Parse()
 }
