@@ -106,7 +106,7 @@ func (p *HTMLParser) finish() Node {
 }
 
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
-	parts := strings.Split(text, " ")
+	parts := strings.Fields(text)
 	tag := strings.ToLower(parts[0])
 	attributes := make(map[string]string)
 	for _, part := range parts[1:] {
