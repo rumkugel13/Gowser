@@ -110,8 +110,8 @@ func (p *CSSParser) selector() Selector {
 	return out
 }
 
-func (p *CSSParser) Parse() map[Selector]map[string]string {
-	rules := make(map[Selector]map[string]string)
+func (p *CSSParser) Parse() []Rule {
+	rules := make([]Rule, 0)
 	for p.i < len(p.style) {
 		shouldBreak := false
 		func() {
@@ -134,7 +134,7 @@ func (p *CSSParser) Parse() map[Selector]map[string]string {
 			p.whitespace()
 			body := p.body()
 			p.literal('}')
-			rules[selector] = body
+			rules = append(rules, *NewRule(selector, body))
 		}()
 		if shouldBreak {
 			break

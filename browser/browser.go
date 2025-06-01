@@ -6,8 +6,9 @@ import (
 	"gowser/html"
 	"gowser/layout"
 	"gowser/url"
-	"maps"
 	"os"
+	"slices"
+	"sort"
 	"time"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -20,7 +21,7 @@ const (
 )
 
 var (
-	DEFAULT_STYLE_SHEET map[css.Selector]map[string]string
+	DEFAULT_STYLE_SHEET []css.Rule
 )
 
 type Browser struct {
@@ -58,7 +59,7 @@ func (b *Browser) Load(url *url.URL) {
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
-	rules := maps.Clone(DEFAULT_STYLE_SHEET)
+	rules := slices.Clone(DEFAULT_STYLE_SHEET)
 	links := b.links(nodes)
 	for _, link := range links {
 		style_url := url.Resolve(link)
@@ -75,9 +76,12 @@ func (b *Browser) Load(url *url.URL) {
 			style_body = style_url.Request()
 		}()
 		if style_body != "" {
-			maps.Copy(rules, css.NewCSSParser(style_body).Parse())
+			rules = append(rules, css.NewCSSParser(style_body).Parse()...)
 		}
 	}
+	sort.SliceStable(rules, func(i, j int) bool {
+		return css.Cascade_priority(rules[i]) < css.Cascade_priority(rules[j])
+	})
 	css.Style(nodes, rules)
 	fmt.Println("Styling took:", time.Since(start))
 

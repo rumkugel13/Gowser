@@ -5,8 +5,10 @@ import (
 	"maps"
 )
 
-func Style(node *html.Node, rules map[Selector]map[string]string) {
-	for selector, styles := range rules {
+func Style(node *html.Node, rules []Rule) {
+	for _, rule := range rules {
+		selector := rule.Selector
+		styles := rule.Body
 		if !selector.Matches(*node) {
 			continue
 		}
