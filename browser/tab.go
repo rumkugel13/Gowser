@@ -101,9 +101,9 @@ func (t *Tab) links(nodes *html.Node) []string {
 	flatNodes := html.TreeToList(nodes, &[]html.Node{})
 	links := []string{}
 	for _, node := range flatNodes {
-		if tag, ok := node.Token.(html.TagToken); ok && tag.Tag == "link" {
-			if rel, exists := tag.Attributes["rel"]; exists && rel == "stylesheet" {
-				if href, exists := tag.Attributes["href"]; exists {
+		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "link" {
+			if rel, exists := element.Attributes["rel"]; exists && rel == "stylesheet" {
+				if href, exists := element.Attributes["href"]; exists {
 					links = append(links, href)
 				}
 			}
@@ -133,11 +133,11 @@ func (t *Tab) click(x, y float32) {
 
 	elt := objs[len(objs)-1].Node
 	for elt != nil {
-		tag, ok := elt.Token.(html.TagToken)
+		element, ok := elt.Token.(html.ElementToken)
 		if !ok {
 			// pass, text token
-		} else if tag.Tag == "a" && tag.Attributes["href"] != "" {
-			url := t.url.Resolve(tag.Attributes["href"])
+		} else if element.Tag == "a" && element.Attributes["href"] != "" {
+			url := t.url.Resolve(element.Attributes["href"])
 			t.Load(url)
 			return
 		}

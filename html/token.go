@@ -22,18 +22,18 @@ func (t TextToken) String() string {
 	return strconv.Quote(t.Text)
 }
 
-type TagToken struct {
+type ElementToken struct {
 	Tag        string
 	Attributes map[string]string
 }
 
-func NewTagToken(tag string, attributes map[string]string) TagToken {
-	return TagToken{
+func NewElementToken(tag string, attributes map[string]string) ElementToken {
+	return ElementToken{
 		Tag:        tag,
 		Attributes: attributes,
 	}
 }
 
-func (t TagToken) String() string {
-	return "<" + t.Tag + ">"
+func (e ElementToken) String() string {
+	return "<" + e.Tag + ">"
 }

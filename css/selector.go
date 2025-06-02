@@ -10,7 +10,7 @@ type Selector interface {
 }
 
 type TagSelector struct {
-	Tag string
+	Tag      string
 	priority int
 }
 
@@ -19,8 +19,8 @@ func NewTagSelector(tag string) *TagSelector {
 }
 
 func (s *TagSelector) Matches(node *html.Node) bool {
-	if tag, ok := node.Token.(html.TagToken); ok {
-		return tag.Tag == s.Tag
+	if element, ok := node.Token.(html.ElementToken); ok {
+		return element.Tag == s.Tag
 	}
 	return false
 }
@@ -30,9 +30,9 @@ func (s *TagSelector) Priority() int {
 }
 
 type DescendantSelector struct {
-	Ancestor Selector
+	Ancestor   Selector
 	Descendant Selector
-	priority int
+	priority   int
 }
 
 func NewDescendantSelector(ancestor Selector, descendant Selector) *DescendantSelector {

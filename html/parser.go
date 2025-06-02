@@ -77,7 +77,7 @@ func (p *HTMLParser) add_tag(tag string) {
 		parent.Children = append(parent.Children, node)
 	} else if slices.Contains(VOID_TAGS, tag) {
 		parent := p.unfinished[len(p.unfinished)-1]
-		node := NewNode(NewTagToken(tag, attributes), parent)
+		node := NewNode(NewElementToken(tag, attributes), parent)
 		parent.Children = append(parent.Children, node)
 	} else {
 		var parent *Node
@@ -86,7 +86,7 @@ func (p *HTMLParser) add_tag(tag string) {
 		} else {
 			parent = p.unfinished[len(p.unfinished)-1]
 		}
-		node := NewNode(NewTagToken(tag, attributes), parent)
+		node := NewNode(NewElementToken(tag, attributes), parent)
 		p.unfinished = append(p.unfinished, node)
 	}
 }
@@ -127,7 +127,7 @@ func (p *HTMLParser) implicit_tags(tag string) {
 	for {
 		open_tags := []string{}
 		for _, node := range p.unfinished {
-			open_tags = append(open_tags, node.Token.(TagToken).Tag)
+			open_tags = append(open_tags, node.Token.(ElementToken).Tag)
 		}
 		if len(open_tags) == 0 && tag != "html" {
 			p.add_tag("html")

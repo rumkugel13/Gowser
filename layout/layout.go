@@ -139,7 +139,7 @@ func (l *BlockLayout) layout_mode() string {
 		return "inline"
 	} else {
 		for _, child := range l.wrap.Node.Children {
-			if elem, ok := child.Token.(html.TagToken); ok && slices.Contains(BLOCK_ELEMENTS, elem.Tag) {
+			if element, ok := child.Token.(html.ElementToken); ok && slices.Contains(BLOCK_ELEMENTS, element.Tag) {
 				return "block"
 			}
 		}
@@ -158,7 +158,7 @@ func (l *BlockLayout) recurse(node *html.Node) {
 			l.word(node, word)
 		}
 	} else {
-		if tag, ok := node.Token.(html.TagToken); ok && tag.Tag == "br" {
+		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "br" {
 			l.new_line()
 		}
 		for _, child := range node.Children {

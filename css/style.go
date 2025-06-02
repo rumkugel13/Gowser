@@ -35,8 +35,8 @@ func Style(node *html.Node, rules []Rule) {
 		maps.Copy(node.Style, styles)
 	}
 
-	if tag, ok := node.Token.(html.TagToken); ok {
-		if style, exists := tag.Attributes["style"]; exists {
+	if element, ok := node.Token.(html.ElementToken); ok {
+		if style, exists := element.Attributes["style"]; exists {
 			parser := NewCSSParser(style)
 			pairs := parser.body()
 			maps.Copy(node.Style, pairs)
@@ -50,7 +50,7 @@ func Style(node *html.Node, rules []Rule) {
 		} else {
 			parent_font_size = INHERITED_PROPERTIES["font-size"]
 		}
-		node_pct, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"],"%"), 32)
+		node_pct, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"], "%"), 32)
 		if err != nil {
 			node_pct = 1.0 // Default to 100% if parsing fails
 		} else {
