@@ -30,7 +30,7 @@ type Browser struct {
 	canvas       *tk9_0.CanvasWidget
 	display_list []layout.Command
 	scroll       float32
-	document     *layout.DocumentLayout
+	document     *layout.LayoutNode
 }
 
 func NewBrowser() *Browser {
@@ -41,7 +41,7 @@ func NewBrowser() *Browser {
 	tk9_0.Pack(browser.canvas)
 	browser.scroll = 0
 	tk9_0.Bind(tk9_0.App, "<Down>", tk9_0.Command(func() {
-		max_y := max(browser.document.Height()+2*layout.VSTEP-DefaultHeight, 0)
+		max_y := max(browser.document.Height+2*layout.VSTEP-DefaultHeight, 0)
 		browser.scroll = min(browser.scroll+SCROLL_STEP, max_y)
 		browser.Draw()
 	}))
@@ -82,8 +82,8 @@ func (b *Browser) Load(url *url.URL) {
 	fmt.Println("Styling took:", time.Since(start))
 
 	start = time.Now()
-	b.document = layout.NewDocumentLayout(nodes)
-	b.document.Layout()
+	b.document = layout.NewLayoutNode(layout.NewDocumentLayout(nodes), nil)
+	b.document.Layout.Layout()
 	// layout.PrintTree(b.document, 0)
 	b.display_list = make([]layout.Command, 0)
 	layout.PaintTree(b.document, &b.display_list)

@@ -30,28 +30,28 @@ func TestBasicLayout(t *testing.T) {
     }
 
     // Create document layout
-    doc := NewDocumentLayout(htmlNode)
-    doc.Layout()
+    doc := NewLayoutNode(NewDocumentLayout(htmlNode), nil)
+    doc.Layout.Layout()
 
     // Basic tests
-    if doc.Width() != DefaultWidth-2*HSTEP {
+    if doc.Width != DefaultWidth-2*HSTEP {
         t.Errorf("Document width incorrect, got: %f, want: %f", 
-            doc.Width(), DefaultWidth-2*HSTEP)
+            doc.Width, DefaultWidth-2*HSTEP)
     }
 
-    if doc.X() != HSTEP {
+    if doc.X != HSTEP {
         t.Errorf("Document X position incorrect, got: %f, want: %f", 
-            doc.X(), HSTEP)
+            doc.X, HSTEP)
     }
 
-    if doc.Y() != VSTEP {
+    if doc.Y != VSTEP {
         t.Errorf("Document Y position incorrect, got: %f, want: %f", 
-            doc.Y(), VSTEP)
+            doc.Y, VSTEP)
     }
 
     // Test children
-    if len(doc.Children()) != 1 {
-        t.Fatalf("Expected 1 child, got %d", len(doc.Children()))
+    if len(doc.children) != 1 {
+        t.Fatalf("Expected 1 child, got %d", len(doc.children))
     }
 
     // Test paint commands
