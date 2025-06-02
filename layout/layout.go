@@ -270,7 +270,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	size := int(float32(fSize) * 0.75)
 
 	font := GetFont(size, weight, style)
-	width := measure(font, word)
+	width := Measure(font, word)
 	if l.cursor_x+width > l.width {
 		l.flush()
 	}

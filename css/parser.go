@@ -1,6 +1,7 @@
 package css
 
 import (
+	"gowser/try"
 	"slices"
 	"strconv"
 	"strings"
@@ -59,29 +60,21 @@ func (p *CSSParser) pair() (string, string) {
 func (p *CSSParser) body() map[string]string {
 	pairs := make(map[string]string)
 	for p.i < len(p.style) && p.style[p.i] != '}' {
-		shouldBreak := false
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// this represents the catch block
-					why := p.ignore_until(';', '}')
-					if why == ';' {
-						p.literal(';')
-						p.whitespace()
-					} else {
-						shouldBreak = true
-					}
-				}
-			}()
-			// this represents the try block
+		err := try.Try(func() {
 			prop, val := p.pair()
 			pairs[strings.ToLower(prop)] = val
 			p.whitespace()
 			p.literal(';')
 			p.whitespace()
-		}()
-		if shouldBreak {
-			break
+		})
+		if err != nil {
+			why := p.ignore_until(';', '}')
+			if why == ';' {
+				p.literal(';')
+				p.whitespace()
+			} else {
+				break
+			}
 		}
 	}
 	return pairs
@@ -113,21 +106,7 @@ func (p *CSSParser) selector() Selector {
 func (p *CSSParser) Parse() []Rule {
 	rules := make([]Rule, 0)
 	for p.i < len(p.style) {
-		shouldBreak := false
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// catch block
-					why := p.ignore_until('}')
-					if why == '}' {
-						p.literal('}')
-						p.whitespace()
-					} else {
-						shouldBreak = true
-					}
-				}
-			}()
-			// try block
+		err := try.Try(func() {
 			p.whitespace()
 			selector := p.selector()
 			p.literal('{')
@@ -135,9 +114,15 @@ func (p *CSSParser) Parse() []Rule {
 			body := p.body()
 			p.literal('}')
 			rules = append(rules, *NewRule(selector, body))
-		}()
-		if shouldBreak {
-			break
+		})
+		if err != nil {
+			why := p.ignore_until('}')
+			if why == '}' {
+				p.literal('}')
+				p.whitespace()
+			} else {
+				break
+			}
 		}
 	}
 	return rules

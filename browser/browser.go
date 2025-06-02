@@ -5,6 +5,7 @@ import (
 	"gowser/css"
 	"gowser/html"
 	"gowser/layout"
+	"gowser/try"
 	"gowser/url"
 	"os"
 	"slices"
@@ -65,17 +66,12 @@ func (b *Browser) Load(url *url.URL) {
 		style_url := url.Resolve(link)
 		fmt.Println("Loading stylesheet:", style_url)
 		var style_body string
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Println("Recovered from panic:", r)
-					// Handle the error, e.g., set a default style or log the error
-					style_body = "" // Ensure style_body is an empty string to avoid further errors
-				}
-			}()
+		err := try.Try(func() {
 			style_body = style_url.Request()
-		}()
-		if style_body != "" {
+		})
+		if err != nil {
+			fmt.Println("Error loading stylesheet:", err)
+		} else {
 			rules = append(rules, css.NewCSSParser(style_body).Parse()...)
 		}
 	}
