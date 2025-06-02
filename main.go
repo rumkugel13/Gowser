@@ -11,6 +11,6 @@ import (
 func main() {
 	url := url.NewURL(os.Args[1])
 	browser := browser.NewBrowser()
-	browser.Load(url)
+	browser.NewTab(url)
 	tk9_0.App.Center().Wait()
 }
