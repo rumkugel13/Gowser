@@ -114,7 +114,14 @@ func (u *URL) Request() string {
 }
 
 func (u *URL) String() string {
-	return u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port) + u.path
+	port_part := ":" + strconv.Itoa(u.port)
+	if u.scheme == "https" && u.port == 443 {
+		port_part = ""
+	}
+	if u.scheme == "http" && u.port == 80 {
+		port_part = ""
+	}
+	return u.scheme + "://" + u.host + port_part + u.path
 }
 
 func (u *URL) Resolve(link_url string) *URL {

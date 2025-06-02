@@ -31,15 +31,21 @@ type Tab struct {
 	document     *layout.LayoutNode
 	url          *url.URL
 	tab_height   float32
+	history      []*url.URL
 }
 
 func NewTab(tab_height float32) *Tab {
 	load_default_style_sheet()
-	tab := &Tab{scroll: 0, tab_height: tab_height}
+	tab := &Tab{
+		scroll: 0, 
+		tab_height: tab_height,
+		history: make([]*url.URL, 0),
+	}
 	return tab
 }
 
 func (t *Tab) Load(url *url.URL) {
+	t.history = append(t.history, url)
 	t.url = url
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
@@ -142,6 +148,15 @@ func (t *Tab) click(x, y float32) {
 			return
 		}
 		elt = elt.Parent
+	}
+}
+
+func (t *Tab) go_back() {
+	if len(t.history) > 1 {
+		t.history = t.history[:len(t.history)-1] // pop
+		back := t.history[len(t.history)-1]
+		t.history = t.history[:len(t.history)-1] // pop
+		t.Load(back)
 	}
 }
 
