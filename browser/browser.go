@@ -87,9 +87,7 @@ func (b *Browser) Load(url *url.URL) {
 	// layout.PrintTree(b.document, 0)
 	b.display_list = make([]layout.Command, 0)
 	layout.PaintTree(b.document, &b.display_list)
-	// for _, cmd := range b.display_list {
-	// 	fmt.Println("Command:", cmd)
-	// }
+	// layout.PrintCommands(b.display_list)
 	fmt.Println("Layout took:", time.Since(start))
 
 	start = time.Now()

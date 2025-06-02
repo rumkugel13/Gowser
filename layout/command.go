@@ -77,3 +77,9 @@ func (d *DrawRect) Bottom() float32 {
 func (d *DrawRect) String() string {
 	return fmt.Sprint("DrawRect(top=", d.top, ", left=", d.left, ", bottom=", d.bottom, ", right=", d.right, ", color='", d.color, "')")
 }
+
+func PrintCommands(list []Command) {
+	for _, cmd := range list {
+		fmt.Println("Command:", cmd)
+	}
+}
