@@ -80,7 +80,7 @@ func (b *Browser) Load(url *url.URL) {
 		}
 	}
 	sort.SliceStable(rules, func(i, j int) bool {
-		return css.Cascade_priority(rules[i]) < css.Cascade_priority(rules[j])
+		return css.CascadePriority(rules[i]) < css.CascadePriority(rules[j])
 	})
 	css.Style(nodes, rules)
 	fmt.Println("Styling took:", time.Since(start))

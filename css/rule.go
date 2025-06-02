@@ -12,7 +12,7 @@ func NewRule(selector Selector, body map[string]string) *Rule {
 	}
 }
 
-func Cascade_priority(rule Rule) int {
+func CascadePriority(rule Rule) int {
 	sel := rule.Selector
 	return sel.Priority()
 }
