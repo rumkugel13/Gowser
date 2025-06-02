@@ -95,3 +95,22 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] :has selectors
 
 7. Handling Buttons and Links
+    - [x] Size and Position for each word
+    - [x] Determine where the user clicks
+    - [x] Split up browser with tabs
+    - [x] Draw tabs, address bar and more
+    - [x] Implement text editing
+    - [ ] Exercises (Optional)
+      - [] Backspace
+      - [ ] Middle click
+      - [ ] Window title
+      - [ ] Forward
+      - [ ] Fragments
+      - [ ] Search
+      - [ ] Visited links
+      - [ ] Bookmarks
+      - [ ] Cursor
+      - [ ] Multiple windows
+      - [ ] Clicks via the display list
+
+8. Sending Information to Servers

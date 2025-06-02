@@ -21,10 +21,12 @@ type Chrome struct {
 	urlbar_bottom float32
 	back_rect     *layout.Rect
 	address_rect  *layout.Rect
+	focus         string
+	address_bar   string
 }
 
 func NewChrome(browser *Browser) *Chrome {
-	chrome := &Chrome{browser: browser}
+	chrome := &Chrome{browser: browser, address_bar: ""}
 	chrome.font = layout.GetFont(20, "normal", "roman")
 	chrome.font_height = float32(chrome.font.MetricsLinespace(tk9_0.App))
 
@@ -40,15 +42,15 @@ func NewChrome(browser *Browser) *Chrome {
 	back_width := layout.Measure(chrome.font, "<") + 2*chrome.padding
 	chrome.back_rect = layout.NewRect(
 		chrome.padding,
-		chrome.urlbar_top + chrome.padding,
-		chrome.padding + back_width,
-		chrome.urlbar_bottom - chrome.padding,
+		chrome.urlbar_top+chrome.padding,
+		chrome.padding+back_width,
+		chrome.urlbar_bottom-chrome.padding,
 	)
 	chrome.address_rect = layout.NewRect(
-		chrome.back_rect.Top + chrome.padding,
-		chrome.urlbar_top + chrome.padding,
-		DefaultWidth - chrome.padding,
-		chrome.urlbar_bottom - chrome.padding,
+		chrome.back_rect.Top+chrome.padding,
+		chrome.urlbar_top+chrome.padding,
+		DefaultWidth-chrome.padding,
+		chrome.urlbar_bottom-chrome.padding,
 	)
 
 	chrome.bottom = chrome.urlbar_bottom
@@ -96,26 +98,59 @@ func (c *Chrome) paint() []layout.Command {
 	))
 
 	cmds = append(cmds, layout.NewDrawOutline(c.address_rect, "black", 1))
-	url := c.browser.active_tab.url.String()
-	cmds = append(cmds, layout.NewDrawText(
-		c.address_rect.Left+c.padding,
-		c.address_rect.Top,
-		url, c.font, "black",
-	))
+	if c.focus == "address bar" {
+		cmds = append(cmds, layout.NewDrawText(
+			c.address_rect.Left+c.padding,
+			c.address_rect.Top,
+			c.address_bar, c.font, "black",
+		))
+		w := layout.Measure(c.font, c.address_bar)
+		cmds = append(cmds, layout.NewDrawLine(
+			c.address_rect.Left + c.padding + w,
+			c.address_rect.Top,
+			c.address_rect.Left + c.padding + w,
+			c.address_rect.Bottom,
+			"red", 1,
+		))
+	} else {
+		url := c.browser.active_tab.url.String()
+		cmds = append(cmds, layout.NewDrawText(
+			c.address_rect.Left+c.padding,
+			c.address_rect.Top,
+			url, c.font, "black",
+		))
+	}
 
 	return cmds
 }
 
 func (c *Chrome) click(x, y float32) {
+	c.focus = ""
 	if c.newtab_rect.ContainsPoint(x, y) {
 		c.browser.NewTab(url.NewURL("https://browser.engineering/"))
 	} else if c.back_rect.ContainsPoint(x, y) {
 		c.browser.active_tab.go_back()
+	} else if c.address_rect.ContainsPoint(x, y) {
+		c.focus = "address bar"
+		c.address_bar = ""
 	} else {
 		for i, tab := range c.browser.tabs {
 			if c.tab_rect(i).ContainsPoint(x, y) {
 				c.browser.active_tab = tab
 			}
 		}
+	}
+}
+
+func (c *Chrome) keypress(char rune) {
+	if c.focus == "address bar" {
+		c.address_bar += string(char)
+	}
+}
+
+func (c *Chrome) enter() {
+	if c.focus == "address bar" {
+		c.browser.active_tab.Load(url.NewURL(c.address_bar))
+		c.focus = ""
 	}
 }
