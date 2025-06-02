@@ -82,7 +82,7 @@ func (b *Browser) Load(url *url.URL) {
 	fmt.Println("Styling took:", time.Since(start))
 
 	start = time.Now()
-	b.document = layout.NewLayoutNode(layout.NewDocumentLayout(nodes), nil)
+	b.document = layout.NewLayoutNode(layout.NewDocumentLayout(), nodes, nil)
 	b.document.Layout.Layout()
 	// layout.PrintTree(b.document, 0)
 	b.display_list = make([]layout.Command, 0)

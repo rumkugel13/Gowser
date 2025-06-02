@@ -30,7 +30,7 @@ func TestBasicLayout(t *testing.T) {
     }
 
     // Create document layout
-    doc := NewLayoutNode(NewDocumentLayout(htmlNode), nil)
+    doc := NewLayoutNode(NewDocumentLayout(), htmlNode, nil)
     doc.Layout.Layout()
 
     // Basic tests

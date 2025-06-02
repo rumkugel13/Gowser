@@ -33,18 +33,15 @@ type Layout interface {
 }
 
 type DocumentLayout struct {
-	node    *html.Node
 	Wrapper *LayoutNode
 }
 
-func NewDocumentLayout(node *html.Node) *DocumentLayout {
-	return &DocumentLayout{
-		node: node,
-	}
+func NewDocumentLayout() *DocumentLayout {
+	return &DocumentLayout{}
 }
 
 func (d *DocumentLayout) Layout() {
-	child := NewLayoutNode(NewBlockLayout(d.node, nil), d.Wrapper)
+	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper)
 	d.Wrapper.children = append(d.Wrapper.children, child)
 
 	d.Wrapper.Width = DefaultWidth - 2*HSTEP
@@ -68,16 +65,14 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 
 type BlockLayout struct {
 	cursor_x, cursor_y float32
-	node               *html.Node
 	wrap               *LayoutNode
 	previous           *LayoutNode
 }
 
-func NewBlockLayout(tree *html.Node, previous *LayoutNode) *BlockLayout {
+func NewBlockLayout(previous *LayoutNode) *BlockLayout {
 	layout := &BlockLayout{
 		cursor_x:     float32(HSTEP),
 		cursor_y:     float32(VSTEP),
-		node:         tree,
 		previous:     previous,
 	}
 	return layout
@@ -95,14 +90,14 @@ func (l *BlockLayout) Layout() {
 	mode := l.layout_mode()
 	if mode == "block" {
 		var previous *LayoutNode
-		for _, child := range l.node.Children {
-			next := NewLayoutNode(NewBlockLayout(child, previous), l.wrap)
+		for _, child := range l.wrap.Node.Children {
+			next := NewLayoutNode(NewBlockLayout(previous), child, l.wrap)
 			l.wrap.children = append(l.wrap.children, next)
 			previous = next
 		}
 	} else {
 		l.new_line()
-		l.recurse(l.node)
+		l.recurse(l.wrap.Node)
 	}
 
 	for _, child := range l.wrap.children {
@@ -118,13 +113,13 @@ func (l *BlockLayout) Layout() {
 
 func (l *BlockLayout) String() string {
 	return fmt.Sprintf("BlockLayout(mode=%s, x=%f, y=%f, width=%f, height=%f, node=%v, style=%v)", l.layout_mode(),
-		l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.node.Token, l.node.Style)
+		l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Token, l.wrap.Node.Style)
 }
 
 func (l *BlockLayout) Paint() []Command {
 	cmds := make([]Command, 0)
 
-	bgcolor, ok := l.node.Style["background-color"]
+	bgcolor, ok := l.wrap.Node.Style["background-color"]
 	if !ok {
 		bgcolor = "transparent"
 	}
@@ -141,15 +136,15 @@ func (d *BlockLayout) Wrap(wrap *LayoutNode) {
 }
 
 func (l *BlockLayout) layout_mode() string {
-	if _, ok := l.node.Token.(html.TextToken); ok {
+	if _, ok := l.wrap.Node.Token.(html.TextToken); ok {
 		return "inline"
 	} else {
-		for _, child := range l.node.Children {
+		for _, child := range l.wrap.Node.Children {
 			if elem, ok := child.Token.(html.TagToken); ok && slices.Contains(BLOCK_ELEMENTS, elem.Tag) {
 				return "block"
 			}
 		}
-		if len(l.node.Children) > 0 {
+		if len(l.wrap.Node.Children) > 0 {
 			return "inline"
 		} else {
 			return "block"
@@ -196,7 +191,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	if len(line.children) > 0 {
 		previous_word = line.children[len(line.children)-1]
 	}
-	text := NewLayoutNode(NewTextLayout(node, word, previous_word), line)
+	text := NewLayoutNode(NewTextLayout(word, previous_word), node, line)
 	line.children = append(line.children, text)
 	l.cursor_x += width + Measure(font, " ")
 }
@@ -207,7 +202,7 @@ func (l *BlockLayout) new_line() {
 	if len(l.wrap.children) > 0 {
 		last_line = l.wrap.children[len(l.wrap.children)-1]
 	}
-	new_line := NewLayoutNode(NewLineLayout(l.node, last_line), l.wrap)
+	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap)
 	l.wrap.children = append(l.wrap.children, new_line)
 }
 
@@ -234,14 +229,12 @@ func TreeToList(tree *LayoutNode, list *[]*LayoutNode) []*LayoutNode {
 }
 
 type LineLayout struct {
-	node     *html.Node
 	wrap     *LayoutNode
 	previous *LayoutNode
 }
 
-func NewLineLayout(tree *html.Node, previous *LayoutNode) *LineLayout {
+func NewLineLayout(previous *LayoutNode) *LineLayout {
 	return &LineLayout{
-		node:     tree,
 		previous: previous,
 	}
 }
@@ -291,28 +284,26 @@ func (d *LineLayout) Wrap(wrap *LayoutNode) {
 }
 
 type TextLayout struct {
-	node     *html.Node
 	word     string
 	wrap     *LayoutNode
 	previous *LayoutNode
 	font *tk9_0.FontFace
 }
 
-func NewTextLayout(tree *html.Node, word string, previous *LayoutNode) *TextLayout {
+func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
 	return &TextLayout{
-		node:     tree,
 		word:     word,
 		previous: previous,
 	}
 }
 
 func (l *TextLayout) Layout() {
-	weight := l.node.Style["font-weight"]
-	style := l.node.Style["font-style"]
+	weight := l.wrap.Node.Style["font-weight"]
+	style := l.wrap.Node.Style["font-style"]
 	if style == "normal" {
 		style = "roman"
 	}
-	fSize, err := strconv.ParseFloat(strings.TrimSuffix(l.node.Style["font-size"], "px"), 32)
+	fSize, err := strconv.ParseFloat(strings.TrimSuffix(l.wrap.Node.Style["font-size"], "px"), 32)
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
@@ -336,7 +327,7 @@ func (l *TextLayout) String() string {
 }
 
 func (l *TextLayout) Paint() []Command {
-	color := l.node.Style["color"]
+	color := l.wrap.Node.Style["color"]
 	return []Command{NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
 }
 
