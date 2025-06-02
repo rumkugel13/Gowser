@@ -30,11 +30,12 @@ type Tab struct {
 	scroll       float32
 	document     *layout.LayoutNode
 	url          *url.URL
+	tab_height   float32
 }
 
-func NewTab() *Tab {
+func NewTab(tab_height float32) *Tab {
 	load_default_style_sheet()
-	tab := &Tab{scroll: 0}
+	tab := &Tab{scroll: 0, tab_height: tab_height}
 	return tab
 }
 
@@ -82,16 +83,16 @@ func (t *Tab) Load(url *url.URL) {
 	fmt.Println("Layout took:", time.Since(start))
 }
 
-func (t *Tab) Draw(canvas *tk9_0.CanvasWidget) {
+func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
 	start := time.Now()
 	for _, cmd := range t.display_list {
-		if cmd.Top() > t.scroll+DefaultHeight {
+		if cmd.Top() > t.scroll+t.tab_height {
 			continue // Skip items that are outside the visible area
 		}
 		if cmd.Bottom() < t.scroll {
 			continue // Skip items that are above the visible area
 		}
-		cmd.Execute(t.scroll, *canvas)
+		cmd.Execute(t.scroll-offset, *canvas)
 	}
 	fmt.Println("Drawing took:", time.Since(start))
 }
@@ -112,11 +113,11 @@ func (t *Tab) links(nodes *html.Node) []string {
 }
 
 func (t *Tab) scrollDown() {
-	max_y := max(t.document.Height+2*layout.VSTEP-DefaultHeight, 0)
+	max_y := max(t.document.Height+2*layout.VSTEP-t.tab_height, 0)
 	t.scroll = min(t.scroll+SCROLL_STEP, max_y)
 }
 
-func (t *Tab) click(x,y float32) {
+func (t *Tab) click(x, y float32) {
 	y += t.scroll
 	objs := []*layout.LayoutNode{}
 	for _, obj := range layout.TreeToList(t.document, &[]*layout.LayoutNode{}) {

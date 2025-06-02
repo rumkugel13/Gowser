@@ -71,9 +71,9 @@ type BlockLayout struct {
 
 func NewBlockLayout(previous *LayoutNode) *BlockLayout {
 	layout := &BlockLayout{
-		cursor_x:     float32(HSTEP),
-		cursor_y:     float32(VSTEP),
-		previous:     previous,
+		cursor_x: float32(HSTEP),
+		cursor_y: float32(VSTEP),
+		previous: previous,
 	}
 	return layout
 }
@@ -124,8 +124,7 @@ func (l *BlockLayout) Paint() []Command {
 		bgcolor = "transparent"
 	}
 	if bgcolor != "transparent" && bgcolor != "" {
-		x2, y2 := l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height
-		rect := NewDrawRect(l.wrap.X, l.wrap.Y, x2, y2, bgcolor)
+		rect := NewDrawRect(l.self_rect(), bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
@@ -204,6 +203,10 @@ func (l *BlockLayout) new_line() {
 	}
 	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap)
 	l.wrap.children = append(l.wrap.children, new_line)
+}
+
+func (l *BlockLayout) self_rect() *Rect {
+	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
 func PaintTree(l *LayoutNode, displayList *[]Command) {
@@ -287,7 +290,7 @@ type TextLayout struct {
 	word     string
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font *tk9_0.FontFace
+	font     *tk9_0.FontFace
 }
 
 func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
