@@ -2,9 +2,16 @@ package browser
 
 import (
 	// "gowser/layout"
+	"fmt"
+	"gowser/css"
 	"gowser/url"
+	"os"
 
 	tk9_0 "modernc.org/tk9.0"
+)
+
+var (
+	DEFAULT_STYLE_SHEET []css.Rule
 )
 
 type Browser struct {
@@ -28,6 +35,7 @@ func NewBrowser() *Browser {
 	tk9_0.Bind(tk9_0.App, "<Button-1>", tk9_0.Command(browser.handle_click))
 	tk9_0.Bind(tk9_0.App, "<Key>", tk9_0.Command(browser.handle_key))
 	tk9_0.Bind(tk9_0.App, "<Return>", tk9_0.Command(browser.handle_enter))
+	load_default_style_sheet()
 	return browser
 }
 
@@ -81,4 +89,16 @@ func (b *Browser) handle_key(e *tk9_0.Event) {
 func (b *Browser) handle_enter(e *tk9_0.Event) {
 	b.chrome.enter()
 	b.Draw()
+}
+
+func load_default_style_sheet() {
+	data, err := os.ReadFile("browser.css")
+	if err != nil {
+		fmt.Println("Error loading default style sheet:", err)
+		return
+	}
+
+	fmt.Println("Loading default style sheet from browser.css")
+	parser := css.NewCSSParser(string(data))
+	DEFAULT_STYLE_SHEET = parser.Parse()
 }

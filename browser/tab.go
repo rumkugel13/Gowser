@@ -7,7 +7,6 @@ import (
 	"gowser/layout"
 	"gowser/try"
 	"gowser/url"
-	"os"
 	"slices"
 	"sort"
 	"time"
@@ -21,10 +20,6 @@ const (
 	SCROLL_STEP   = 100.
 )
 
-var (
-	DEFAULT_STYLE_SHEET []css.Rule
-)
-
 type Tab struct {
 	display_list []layout.Command
 	scroll       float32
@@ -35,13 +30,11 @@ type Tab struct {
 }
 
 func NewTab(tab_height float32) *Tab {
-	load_default_style_sheet()
-	tab := &Tab{
-		scroll: 0, 
+	return &Tab{
+		scroll:     0,
 		tab_height: tab_height,
-		history: make([]*url.URL, 0),
+		history:    make([]*url.URL, 0),
 	}
-	return tab
 }
 
 func (t *Tab) Load(url *url.URL) {
@@ -158,16 +151,4 @@ func (t *Tab) go_back() {
 		t.history = t.history[:len(t.history)-1] // pop
 		t.Load(back)
 	}
-}
-
-func load_default_style_sheet() {
-	data, err := os.ReadFile("browser.css")
-	if err != nil {
-		fmt.Println("Error loading default style sheet:", err)
-		return
-	}
-
-	fmt.Println("Loading default style sheet from browser.css")
-	parser := css.NewCSSParser(string(data))
-	DEFAULT_STYLE_SHEET = parser.Parse()
 }
