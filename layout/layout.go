@@ -25,21 +25,6 @@ var BLOCK_ELEMENTS = []string{
 	"legend", "details", "summary",
 }
 
-type LayoutItem struct {
-	Word  string
-	X     float32
-	Y     float32
-	Font  *tk9_0.FontFace
-	Color string
-}
-
-type LineItem struct {
-	X     float32
-	Word  string
-	Font  *tk9_0.FontFace
-	Color string
-}
-
 type Layout interface {
 	Layout()
 	String() string
@@ -83,7 +68,6 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 
 type BlockLayout struct {
 	cursor_x, cursor_y float32
-	Line               []LineItem
 	node               *html.Node
 	wrap               *LayoutNode
 	previous           *LayoutNode
@@ -93,7 +77,6 @@ func NewBlockLayout(tree *html.Node, previous *LayoutNode) *BlockLayout {
 	layout := &BlockLayout{
 		cursor_x:     float32(HSTEP),
 		cursor_y:     float32(VSTEP),
-		Line:         make([]LineItem, 0),
 		node:         tree,
 		previous:     previous,
 	}
