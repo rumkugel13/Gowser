@@ -267,12 +267,12 @@ func PrintTree(l *LayoutNode, indent int) {
 	}
 }
 
-func TreeToList(tree *LayoutNode, list *[]*LayoutNode) []*LayoutNode {
-	*list = append(*list, tree)
+func TreeToList(tree *LayoutNode) []*LayoutNode {
+	list := []*LayoutNode{tree}
 	for _, child := range tree.children {
-		TreeToList(child, list)
+		list = append(list, TreeToList(child)...)
 	}
-	return *list
+	return list
 }
 
 type LineLayout struct {

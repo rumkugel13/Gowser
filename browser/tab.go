@@ -89,7 +89,7 @@ func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
 }
 
 func (t *Tab) links(nodes *html.Node) []string {
-	flatNodes := html.TreeToList(nodes, &[]html.Node{})
+	flatNodes := html.TreeToList(nodes)
 	links := []string{}
 	for _, node := range flatNodes {
 		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "link" {
@@ -118,7 +118,7 @@ func (t *Tab) click(x, y float32) {
 
 	y += t.scroll
 	objs := []*layout.LayoutNode{}
-	for _, obj := range layout.TreeToList(t.document, &[]*layout.LayoutNode{}) {
+	for _, obj := range layout.TreeToList(t.document) {
 		if obj.X <= x && x < obj.X+obj.Width &&
 			obj.Y <= y && y < obj.Y+obj.Height {
 			objs = append(objs, obj)
@@ -198,7 +198,7 @@ func (t *Tab) keypress(char rune) {
 
 func (t *Tab) submit_form(elt *html.Node) {
 	var inputs []*html.ElementToken
-	for _, node := range html.TreeToList(elt, &[]html.Node{}) {
+	for _, node := range html.TreeToList(elt) {
 		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {
 			inputs = append(inputs, &element)
 		}

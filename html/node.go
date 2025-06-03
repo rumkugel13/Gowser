@@ -28,10 +28,10 @@ func (n *Node) PrintTree(indent int) {
 	}
 }
 
-func TreeToList(tree *Node, list *[]Node) []Node {
-	*list = append(*list, *tree)
+func TreeToList(tree *Node) []*Node {
+	list := []*Node{tree}
 	for _, child := range tree.Children {
-		TreeToList(child, list)
+		list = append(list, TreeToList(child)...)
 	}
-	return *list
+	return list
 }
