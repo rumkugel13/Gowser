@@ -142,10 +142,12 @@ func (c *Chrome) click(x, y float32) {
 	}
 }
 
-func (c *Chrome) keypress(char rune) {
+func (c *Chrome) keypress(char rune) bool {
 	if c.focus == "address bar" {
 		c.address_bar += string(char)
+		return true
 	}
+	return false
 }
 
 func (c *Chrome) enter() {
@@ -153,4 +155,8 @@ func (c *Chrome) enter() {
 		c.browser.active_tab.Load(url.NewURL(c.address_bar))
 		c.focus = ""
 	}
+}
+
+func (c *Chrome) blur() {
+	c.focus = ""
 }

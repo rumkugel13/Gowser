@@ -27,6 +27,9 @@ type Tab struct {
 	url          *url.URL
 	tab_height   float32
 	history      []*url.URL
+	nodes        *html.Node
+	rules        []css.Rule
+	focus        *html.ElementToken
 }
 
 func NewTab(tab_height float32) *Tab {
@@ -46,13 +49,13 @@ func (t *Tab) Load(url *url.URL) {
 	fmt.Println("Request took:", time.Since(start))
 
 	start = time.Now()
-	nodes := html.NewHTMLParser(body).Parse()
-	// nodes.PrintTree(0)
+	t.nodes = html.NewHTMLParser(body).Parse()
+	// t.nodes.PrintTree(0)
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
-	rules := slices.Clone(DEFAULT_STYLE_SHEET)
-	links := t.links(nodes)
+	t.rules = slices.Clone(DEFAULT_STYLE_SHEET)
+	links := t.links(t.nodes)
 	for _, link := range links {
 		style_url := url.Resolve(link)
 		fmt.Println("Loading stylesheet:", style_url)
@@ -63,23 +66,11 @@ func (t *Tab) Load(url *url.URL) {
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
 		} else {
-			rules = append(rules, css.NewCSSParser(style_body).Parse()...)
+			t.rules = append(t.rules, css.NewCSSParser(style_body).Parse()...)
 		}
 	}
-	sort.SliceStable(rules, func(i, j int) bool {
-		return css.CascadePriority(rules[i]) < css.CascadePriority(rules[j])
-	})
-	css.Style(nodes, rules)
-	fmt.Println("Styling took:", time.Since(start))
-
-	start = time.Now()
-	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), nodes, nil)
-	t.document.Layout.Layout()
-	// layout.PrintTree(b.document, 0)
-	t.display_list = make([]layout.Command, 0)
-	layout.PaintTree(t.document, &t.display_list)
-	// layout.PrintCommands(b.display_list)
-	fmt.Println("Layout took:", time.Since(start))
+	fmt.Println("Loading stylesheets took:", time.Since(start))
+	t.render()
 }
 
 func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
@@ -117,6 +108,11 @@ func (t *Tab) scrollDown() {
 }
 
 func (t *Tab) click(x, y float32) {
+	if t.focus != nil {
+		t.focus.IsFocused = false
+	}
+	t.focus = nil
+
 	y += t.scroll
 	objs := []*layout.LayoutNode{}
 	for _, obj := range layout.TreeToList(t.document, &[]*layout.LayoutNode{}) {
@@ -139,9 +135,16 @@ func (t *Tab) click(x, y float32) {
 			url := t.url.Resolve(element.Attributes["href"])
 			t.Load(url)
 			return
+		} else if element.Tag == "input" {
+			t.focus = &element
+			element.Attributes["value"] = ""
+			element.IsFocused = true
+			t.render()
+			return
 		}
 		elt = elt.Parent
 	}
+	t.render()
 }
 
 func (t *Tab) go_back() {
@@ -150,5 +153,30 @@ func (t *Tab) go_back() {
 		back := t.history[len(t.history)-1]
 		t.history = t.history[:len(t.history)-1] // pop
 		t.Load(back)
+	}
+}
+
+func (t *Tab) render() {
+	start := time.Now()
+	sort.SliceStable(t.rules, func(i, j int) bool {
+		return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
+	})
+	css.Style(t.nodes, t.rules)
+	fmt.Println("Styling took:", time.Since(start))
+
+	start = time.Now()
+	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.nodes, nil)
+	t.document.Layout.Layout()
+	// layout.PrintTree(b.document, 0)
+	t.display_list = make([]layout.Command, 0)
+	layout.PaintTree(t.document, &t.display_list)
+	// layout.PrintCommands(b.display_list)
+	fmt.Println("Layout took:", time.Since(start))
+}
+
+func (t *Tab) keypress(char rune) {
+	if t.focus != nil {
+		t.focus.Attributes["value"] += string(char)
+		t.render()
 	}
 }

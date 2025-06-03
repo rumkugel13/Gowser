@@ -302,22 +302,31 @@ func (l *LineLayout) Layout() {
 
 	var maxAscent float32
 	for _, item := range l.wrap.children {
-		if txt, ok := item.Layout.(*TextLayout); ok {
-			maxAscent = max(maxAscent, float32(txt.font.MetricsAscent(tk9_0.App)))
+		switch l := item.Layout.(type) {
+		case *TextLayout:
+			maxAscent = max(maxAscent, float32(l.font.MetricsAscent(tk9_0.App)))
+		case *InputLayout:
+			maxAscent = max(maxAscent, float32(l.font.MetricsAscent(tk9_0.App)))
 		}
 	}
 
 	baseline := l.wrap.Y + 1.25*maxAscent
 	for _, item := range l.wrap.children {
-		if txt, ok := item.Layout.(*TextLayout); ok {
-			item.Y = baseline - float32(txt.font.MetricsAscent(tk9_0.App))
+		switch l := item.Layout.(type) {
+		case *TextLayout:
+			item.Y = baseline - float32(l.font.MetricsAscent(tk9_0.App))
+		case *InputLayout:
+			item.Y = baseline - float32(l.font.MetricsAscent(tk9_0.App))
 		}
 	}
 
 	var maxDescent float32
 	for _, item := range l.wrap.children {
-		if txt, ok := item.Layout.(*TextLayout); ok {
-			maxDescent = max(maxDescent, float32(txt.font.MetricsDescent(tk9_0.App)))
+		switch l := item.Layout.(type) {
+		case *TextLayout:
+			maxDescent = max(maxDescent, float32(l.font.MetricsDescent(tk9_0.App)))
+		case *InputLayout:
+			maxDescent = max(maxDescent, float32(l.font.MetricsDescent(tk9_0.App)))
 		}
 	}
 
@@ -370,10 +379,14 @@ func (l *TextLayout) Layout() {
 	l.wrap.Width = Measure(l.font, l.word)
 
 	if l.previous != nil {
-		if txt, ok := l.previous.Layout.(*TextLayout); ok {
-			space := Measure(txt.font, " ")
+		switch t := l.previous.Layout.(type) {
+		case *TextLayout:
+			space := Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
-		} else {
+		case *InputLayout:
+			space := Measure(t.font, " ")
+			l.wrap.X = l.previous.X + space + l.previous.Width
+		default:
 			l.wrap.X = l.wrap.parent.X
 		}
 	} else {
@@ -428,10 +441,14 @@ func (l *InputLayout) Layout() {
 	l.wrap.Width = INPUT_WIDTH_PX
 
 	if l.previous != nil {
-		if txt, ok := l.previous.Layout.(*TextLayout); ok {
-			space := Measure(txt.font, " ")
+		switch t := l.previous.Layout.(type) {
+		case *TextLayout:
+			space := Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
-		} else {
+		case *InputLayout:
+			space := Measure(t.font, " ")
+			l.wrap.X = l.previous.X + space + l.previous.Width
+		default:
 			l.wrap.X = l.wrap.parent.X
 		}
 	} else {
@@ -473,6 +490,12 @@ func (l *InputLayout) Paint() []Command {
 
 	color := l.wrap.Node.Style["color"]
 	cmds = append(cmds, NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
+
+	if l.wrap.Node.Token.(html.ElementToken).IsFocused {
+		cx := l.wrap.X + Measure(l.font, text)
+		cmds = append(cmds, NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
+	}
+
 	return cmds
 }
 

@@ -20,6 +20,7 @@ type Browser struct {
 	window     *tk9_0.Window
 	canvas     *tk9_0.CanvasWidget
 	chrome     *Chrome
+	focus      string
 }
 
 func NewBrowser() *Browser {
@@ -65,8 +66,11 @@ func (b *Browser) handle_down(e *tk9_0.Event) {
 
 func (b *Browser) handle_click(e *tk9_0.Event) {
 	if float32(e.Y) < b.chrome.bottom {
+		b.focus = ""
 		b.chrome.click(float32(e.X), float32(e.Y))
 	} else {
+		b.focus = "content"
+		b.chrome.blur()
 		tab_y := float32(e.Y) - b.chrome.bottom
 		b.active_tab.click(float32(e.X), tab_y)
 	}
@@ -82,8 +86,12 @@ func (b *Browser) handle_key(e *tk9_0.Event) {
 	if !(0x20 <= int(e.Keysym[0]) && int(e.Keysym[0]) < 0x7f) {
 		return
 	}
-	b.chrome.keypress(rune(e.Keysym[0]))
-	b.Draw()
+	if b.chrome.keypress(rune(e.Keysym[0])) {
+		b.Draw()
+	} else if b.focus == "content" {
+		b.active_tab.keypress(rune(e.Keysym[0]))
+		b.Draw()
+	}
 }
 
 func (b *Browser) handle_enter(e *tk9_0.Event) {

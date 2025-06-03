@@ -25,6 +25,7 @@ func (t TextToken) String() string {
 type ElementToken struct {
 	Tag        string
 	Attributes map[string]string
+	IsFocused  bool
 }
 
 func NewElementToken(tag string, attributes map[string]string) ElementToken {
