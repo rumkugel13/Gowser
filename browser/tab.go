@@ -29,7 +29,7 @@ type Tab struct {
 	history      []*url.URL
 	nodes        *html.Node
 	rules        []css.Rule
-	focus        *html.ElementToken
+	focus        *html.Node
 }
 
 func NewTab(tab_height float32) *Tab {
@@ -109,7 +109,9 @@ func (t *Tab) scrollDown() {
 
 func (t *Tab) click(x, y float32) {
 	if t.focus != nil {
-		t.focus.IsFocused = false
+		tok := t.focus.Token.(html.ElementToken)
+		tok.IsFocused = false
+		t.focus.Token = tok
 	}
 	t.focus = nil
 
@@ -136,9 +138,13 @@ func (t *Tab) click(x, y float32) {
 			t.Load(url)
 			return
 		} else if element.Tag == "input" {
-			t.focus = &element
+			t.focus = elt
 			element.Attributes["value"] = ""
-			element.IsFocused = true
+
+			tok := elt.Token.(html.ElementToken)
+			tok.IsFocused = true
+			elt.Token = tok
+			
 			t.render()
 			return
 		}
@@ -176,7 +182,7 @@ func (t *Tab) render() {
 
 func (t *Tab) keypress(char rune) {
 	if t.focus != nil {
-		t.focus.Attributes["value"] += string(char)
+		t.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
 		t.render()
 	}
 }
