@@ -53,7 +53,7 @@ func (b *Browser) Draw() {
 
 func (b *Browser) NewTab(url *url.URL) {
 	new_tab := NewTab(DefaultHeight - b.chrome.bottom)
-	new_tab.Load(url)
+	new_tab.Load(url, "")
 	b.active_tab = new_tab
 	b.tabs = append(b.tabs, new_tab)
 	b.Draw()

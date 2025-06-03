@@ -7,6 +7,7 @@ import (
 	"gowser/layout"
 	"gowser/try"
 	"gowser/url"
+	urllib "net/url"
 	"slices"
 	"sort"
 	"time"
@@ -40,12 +41,12 @@ func NewTab(tab_height float32) *Tab {
 	}
 }
 
-func (t *Tab) Load(url *url.URL) {
+func (t *Tab) Load(url *url.URL, payload string) {
 	t.history = append(t.history, url)
 	t.url = url
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
-	body := url.Request()
+	body := url.Request(payload)
 	fmt.Println("Request took:", time.Since(start))
 
 	start = time.Now()
@@ -61,7 +62,7 @@ func (t *Tab) Load(url *url.URL) {
 		fmt.Println("Loading stylesheet:", style_url)
 		var style_body string
 		err := try.Try(func() {
-			style_body = style_url.Request()
+			style_body = style_url.Request("")
 		})
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
@@ -135,7 +136,7 @@ func (t *Tab) click(x, y float32) {
 			// pass, text token
 		} else if element.Tag == "a" && element.Attributes["href"] != "" {
 			url := t.url.Resolve(element.Attributes["href"])
-			t.Load(url)
+			t.Load(url, "")
 			return
 		} else if element.Tag == "input" {
 			t.focus = elt
@@ -144,9 +145,17 @@ func (t *Tab) click(x, y float32) {
 			tok := elt.Token.(html.ElementToken)
 			tok.IsFocused = true
 			elt.Token = tok
-			
+
 			t.render()
 			return
+		} else if element.Tag == "button" {
+			for elt != nil {
+				if elt.Token.(html.ElementToken).Tag == "form" && elt.Token.(html.ElementToken).Attributes["action"] != "" {
+					t.submit_form(elt)
+					return
+				}
+				elt = elt.Parent
+			}
 		}
 		elt = elt.Parent
 	}
@@ -158,7 +167,7 @@ func (t *Tab) go_back() {
 		t.history = t.history[:len(t.history)-1] // pop
 		back := t.history[len(t.history)-1]
 		t.history = t.history[:len(t.history)-1] // pop
-		t.Load(back)
+		t.Load(back, "")
 	}
 }
 
@@ -185,4 +194,26 @@ func (t *Tab) keypress(char rune) {
 		t.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
 		t.render()
 	}
+}
+
+func (t *Tab) submit_form(elt *html.Node) {
+	var inputs []*html.ElementToken
+	for _, node := range html.TreeToList(elt, &[]html.Node{}) {
+		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {
+			inputs = append(inputs, &element)
+		}
+	}
+
+	var body string
+	for _, input := range inputs {
+		name := input.Attributes["name"]
+		value := input.Attributes["value"]
+		name = urllib.QueryEscape(name)
+		value = urllib.QueryEscape(value)
+		body += "&" + name + "=" + value
+	}
+	body = body[1:]
+
+	url := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
+	t.Load(url, body)
 }

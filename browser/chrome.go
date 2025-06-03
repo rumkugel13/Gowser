@@ -106,9 +106,9 @@ func (c *Chrome) paint() []layout.Command {
 		))
 		w := layout.Measure(c.font, c.address_bar)
 		cmds = append(cmds, layout.NewDrawLine(
-			c.address_rect.Left + c.padding + w,
+			c.address_rect.Left+c.padding+w,
 			c.address_rect.Top,
-			c.address_rect.Left + c.padding + w,
+			c.address_rect.Left+c.padding+w,
 			c.address_rect.Bottom,
 			"red", 1,
 		))
@@ -152,7 +152,7 @@ func (c *Chrome) keypress(char rune) bool {
 
 func (c *Chrome) enter() {
 	if c.focus == "address bar" {
-		c.browser.active_tab.Load(url.NewURL(c.address_bar))
+		c.browser.active_tab.Load(url.NewURL(c.address_bar), "")
 		c.focus = ""
 	}
 }

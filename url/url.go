@@ -1,6 +1,7 @@
 package url
 
 import (
+	"bufio"
 	"crypto/tls"
 	"io"
 	"net"
@@ -45,7 +46,8 @@ func NewURL(url string) *URL {
 	return u
 }
 
-func (u *URL) Request() string {
+func (u *URL) Request(payload string) string {
+	// Create connection
 	conn, err := net.Dial("tcp", u.host+":"+strconv.Itoa(u.port))
 	if err != nil {
 		panic("Failed to connect to host: " + err.Error())
@@ -61,45 +63,53 @@ func (u *URL) Request() string {
 		}
 	}
 
-	request := "GET " + u.path + " HTTP/1.0\r\n"
+	// Create Request Header
+	method := "GET"
+	if payload != "" {
+		method = "POST"
+	}
+
+	request := method + " " + u.path + " HTTP/1.0\r\n"
+	if payload != "" {
+		length := len(payload)
+		request += "Content-Length: " + strconv.Itoa(length) + "\r\n"
+	}
 	request += "Host: " + u.host + "\r\n"
 	request += "\r\n"
+
+	if payload != "" {
+		request += payload
+	}
+
+	// Send Request Header
 	encoded := []byte(request)
 	_, err = conn.Write(encoded)
 	if err != nil {
 		panic("Failed to send request: " + err.Error())
 	}
 
-	buf := make([]byte, 4096)
-	var response strings.Builder
-	for {
-		read, err := conn.Read(buf)
+	// Read Response
+	reader := bufio.NewReader(conn)
+	_, err = reader.ReadString('\n')
+	// statusline, err = reader.ReadString('\n')
+	if err != nil {
+		panic("Failed to read response: " + err.Error())
+	}
+	// split := strings.SplitN(statusline, " ", 3)
+	// version, status, explanation := split[0], split[1], split[2]
 
-		if read > 0 {
-			response.Write(buf[:read])
-		}
+	responseHeaders := make(map[string]string)
+	for {
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			panic("Failed to read response: " + err.Error())
 		}
-		if read == 0 {
-			break // No more data to read
-		}
-	}
-	lines := strings.SplitAfter(response.String(), "\r\n")
-	// statusLine := strings.SplitN(lines[0], " ", 3)
-	// version, status, explanation := statusLine[0], statusLine[1], statusLine[2]
-	responseHeaders := make(map[string]string)
-	var lineNum int
-	for i, line := range lines[1:] {
 		if line == "\r\n" {
-			lineNum = i + 1 + 1 // +1 for the status line, +1 for the empty line after headers
-			break // End of headers
+			break
 		}
-		headerParts := strings.SplitN(line, ":", 2)
-		responseHeaders[strings.ToLower(headerParts[0])] = strings.TrimSpace(headerParts[1])
+		split := strings.SplitN(line, ":", 2)
+		header, value := split[0], split[1]
+		responseHeaders[strings.ToLower(header)] = strings.TrimSpace(value)
 	}
 
 	if _, ok := responseHeaders["transfer-encoding"]; ok {
@@ -109,8 +119,11 @@ func (u *URL) Request() string {
 		panic("Content-Encoding header found in response, unsupported")
 	}
 
-	content := strings.Join(lines[lineNum:], "")
-	return content
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		panic("Failed to read response: " + err.Error())
+	}
+	return string(content)
 }
 
 func (u *URL) String() string {
