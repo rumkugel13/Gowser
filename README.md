@@ -114,3 +114,20 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Clicks via the display list
 
 8. Sending Information to Servers
+    - [x] Layout for input and buttons
+    - [x] Click on buttons and type into inputs
+    - [x] Hierarchical focus handling
+    - [x] Submit forms to server
+    - [x] Small server to handle forms
+    - [ ] Exercises (Optional)
+      - [ ] Enter key
+      - [ ] GET forms
+      - [ ] Blurring
+      - [ ] Check boxes
+      - [ ] Resubmit requests
+      - [ ] Message board
+      - [ ] Persistence
+      - [ ] Rich buttons
+      - [ ] HTML chrome
+
+9.  Running Interactive Scripts
