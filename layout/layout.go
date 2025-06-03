@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	HSTEP        = 13.
-	VSTEP        = 18.
-	DefaultWidth = 800.
+	HSTEP          = 13.
+	VSTEP          = 18.
+	DefaultWidth   = 800.
+	INPUT_WIDTH_PX = 200.
 )
 
 var BLOCK_ELEMENTS = []string{
@@ -30,6 +31,7 @@ type Layout interface {
 	String() string
 	Paint() []Command
 	Wrap(*LayoutNode)
+	ShouldPaint() bool
 }
 
 type DocumentLayout struct {
@@ -57,6 +59,10 @@ func (d *DocumentLayout) String() string {
 
 func (d *DocumentLayout) Paint() []Command {
 	return []Command{}
+}
+
+func (d *DocumentLayout) ShouldPaint() bool {
+	return true
 }
 
 func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
@@ -123,11 +129,18 @@ func (l *BlockLayout) Paint() []Command {
 	if !ok {
 		bgcolor = "transparent"
 	}
-	if bgcolor != "transparent" && bgcolor != "" {
+	if bgcolor != "transparent" {
 		rect := NewDrawRect(l.self_rect(), bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
+}
+
+func (d *BlockLayout) ShouldPaint() bool {
+	if _, ok := d.wrap.Node.Token.(html.TextToken); ok || (d.wrap.Node.Token.(html.ElementToken).Tag != "input" && d.wrap.Node.Token.(html.ElementToken).Tag != "button") {
+		return true
+	}
+	return false
 }
 
 func (d *BlockLayout) Wrap(wrap *LayoutNode) {
@@ -143,7 +156,7 @@ func (l *BlockLayout) layout_mode() string {
 				return "block"
 			}
 		}
-		if len(l.wrap.Node.Children) > 0 {
+		if len(l.wrap.Node.Children) > 0 || l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
 			return "inline"
 		} else {
 			return "block"
@@ -160,6 +173,8 @@ func (l *BlockLayout) recurse(node *html.Node) {
 	} else {
 		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "br" {
 			l.new_line()
+		} else if element, ok := node.Token.(html.ElementToken); ok && (element.Tag == "input" || element.Tag == "button") {
+			l.input(node)
 		}
 		for _, child := range node.Children {
 			l.recurse(child)
@@ -195,6 +210,33 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	l.cursor_x += width + Measure(font, " ")
 }
 
+func (l *BlockLayout) input(node *html.Node) {
+	w := float32(INPUT_WIDTH_PX)
+	if l.cursor_x+w > l.wrap.Width {
+		l.new_line()
+	}
+	line := l.wrap.children[len(l.wrap.children)-1]
+	var previous_word *LayoutNode
+	if len(line.children) > 0 {
+		previous_word = line.children[len(line.children)-1]
+	}
+	input := NewLayoutNode(NewInputLayout(previous_word), node, line)
+	line.children = append(line.children, input)
+
+	weight := node.Style["font-weight"]
+	style := node.Style["font-style"]
+	if style == "normal" {
+		style = "roman"
+	}
+	fSize, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"], "px"), 32)
+	if err != nil {
+		fSize = 16 // Default font size if parsing fails
+	}
+	size := int(float32(fSize) * 0.75)
+	font := GetFont(size, weight, style)
+	l.cursor_x += w + Measure(font, " ")
+}
+
 func (l *BlockLayout) new_line() {
 	l.cursor_x = 0
 	var last_line *LayoutNode
@@ -210,7 +252,9 @@ func (l *BlockLayout) self_rect() *Rect {
 }
 
 func PaintTree(l *LayoutNode, displayList *[]Command) {
-	*displayList = append(*displayList, l.Layout.Paint()...)
+	if l.Layout.ShouldPaint() {
+		*displayList = append(*displayList, l.Layout.Paint()...)
+	}
 	for _, child := range l.children {
 		PaintTree(child, displayList)
 	}
@@ -258,17 +302,23 @@ func (l *LineLayout) Layout() {
 
 	var maxAscent float32
 	for _, item := range l.wrap.children {
-		maxAscent = max(maxAscent, float32(item.Layout.(*TextLayout).font.MetricsAscent(tk9_0.App)))
+		if txt, ok := item.Layout.(*TextLayout); ok {
+			maxAscent = max(maxAscent, float32(txt.font.MetricsAscent(tk9_0.App)))
+		}
 	}
 
 	baseline := l.wrap.Y + 1.25*maxAscent
 	for _, item := range l.wrap.children {
-		item.Y = baseline - float32(item.Layout.(*TextLayout).font.MetricsAscent(tk9_0.App))
+		if txt, ok := item.Layout.(*TextLayout); ok {
+			item.Y = baseline - float32(txt.font.MetricsAscent(tk9_0.App))
+		}
 	}
 
 	var maxDescent float32
 	for _, item := range l.wrap.children {
-		maxDescent = max(maxDescent, float32(item.Layout.(*TextLayout).font.MetricsDescent(tk9_0.App)))
+		if txt, ok := item.Layout.(*TextLayout); ok {
+			maxDescent = max(maxDescent, float32(txt.font.MetricsDescent(tk9_0.App)))
+		}
 	}
 
 	l.wrap.Height = 1.25 * (maxAscent + maxDescent)
@@ -280,6 +330,10 @@ func (l *LineLayout) String() string {
 
 func (l *LineLayout) Paint() []Command {
 	return []Command{}
+}
+
+func (d *LineLayout) ShouldPaint() bool {
+	return true
 }
 
 func (d *LineLayout) Wrap(wrap *LayoutNode) {
@@ -316,8 +370,12 @@ func (l *TextLayout) Layout() {
 	l.wrap.Width = Measure(l.font, l.word)
 
 	if l.previous != nil {
-		space := Measure(l.previous.Layout.(*TextLayout).font, " ")
-		l.wrap.X = l.previous.X + space + l.previous.Width
+		if txt, ok := l.previous.Layout.(*TextLayout); ok {
+			space := Measure(txt.font, " ")
+			l.wrap.X = l.previous.X + space + l.previous.Width
+		} else {
+			l.wrap.X = l.wrap.parent.X
+		}
 	} else {
 		l.wrap.X = l.wrap.parent.X
 	}
@@ -334,6 +392,98 @@ func (l *TextLayout) Paint() []Command {
 	return []Command{NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
 }
 
+func (d *TextLayout) ShouldPaint() bool {
+	return true
+}
+
 func (d *TextLayout) Wrap(wrap *LayoutNode) {
 	d.wrap = wrap
+}
+
+type InputLayout struct {
+	wrap     *LayoutNode
+	previous *LayoutNode
+	font     *tk9_0.FontFace
+}
+
+func NewInputLayout(previous *LayoutNode) *InputLayout {
+	return &InputLayout{
+		previous: previous,
+	}
+}
+
+func (l *InputLayout) Layout() {
+	weight := l.wrap.Node.Style["font-weight"]
+	style := l.wrap.Node.Style["font-style"]
+	if style == "normal" {
+		style = "roman"
+	}
+	fSize, err := strconv.ParseFloat(strings.TrimSuffix(l.wrap.Node.Style["font-size"], "px"), 32)
+	if err != nil {
+		fSize = 16 // Default font size if parsing fails
+	}
+	size := int(float32(fSize) * 0.75)
+	l.font = GetFont(size, weight, style)
+
+	l.wrap.Width = INPUT_WIDTH_PX
+
+	if l.previous != nil {
+		if txt, ok := l.previous.Layout.(*TextLayout); ok {
+			space := Measure(txt.font, " ")
+			l.wrap.X = l.previous.X + space + l.previous.Width
+		} else {
+			l.wrap.X = l.wrap.parent.X
+		}
+	} else {
+		l.wrap.X = l.wrap.parent.X
+	}
+
+	l.wrap.Height = float32(l.font.MetricsLinespace(tk9_0.App))
+}
+
+func (l *InputLayout) String() string {
+	return fmt.Sprintf("InputLayout(x=%f, y=%f, width=%f, height=%f)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height)
+}
+
+func (l *InputLayout) Paint() []Command {
+	cmds := []Command{}
+	bgcolor, ok := l.wrap.Node.Style["background-color"]
+	if !ok {
+		bgcolor = "transparent"
+	}
+	if bgcolor != "transparent" {
+		rect := NewDrawRect(l.self_rect(), bgcolor)
+		cmds = append(cmds, rect)
+	}
+
+	var text string
+	if l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
+		text = l.wrap.Node.Token.(html.ElementToken).Attributes["value"]
+	} else if l.wrap.Node.Token.(html.ElementToken).Tag == "button" {
+		if len(l.wrap.Node.Children) == 1 {
+			if txt, ok := l.wrap.Node.Children[0].Token.(html.TextToken); ok {
+				text = txt.Text
+			} else {
+				fmt.Println("Ignoring HTML contents inside button")
+			}
+		} else {
+			fmt.Println("Ignoring HTML contents inside button")
+		}
+	}
+
+	color := l.wrap.Node.Style["color"]
+	cmds = append(cmds, NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
+	return cmds
+}
+
+func (d *InputLayout) ShouldPaint() bool {
+	return true
+}
+
+func (d *InputLayout) Wrap(wrap *LayoutNode) {
+	d.wrap = wrap
+}
+
+func (l *InputLayout) self_rect() *Rect {
+	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
