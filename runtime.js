@@ -1,4 +1,4 @@
-console = { log: function(x) { _log(x); } }
+console = { log: _log };
 
 document = { querySelectorAll: function(s) {
     var handles = _querySelectorAll(s);

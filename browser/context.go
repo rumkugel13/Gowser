@@ -90,12 +90,11 @@ func (j *JSContext) DispatchEvent(eventType string, elt *html.Node) bool {
 }
 
 func log(ctx *duk.Context) int {
-	// numArgs := ctx.GetTop()
-	// for i := range numArgs {
-	// 	fmt.Print(ctx.SafeToString(i), " ")
-	// }
-	// fmt.Println()
-	fmt.Println(ctx.SafeToString(-1))
+	numArgs := ctx.GetTop()
+	for i := range numArgs {
+		fmt.Print(ctx.SafeToString(i), " ")
+	}
+	fmt.Println()
 	return 0
 }
 
