@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
@@ -12,8 +13,20 @@ import (
 	"strings"
 )
 
+type Entry struct {
+	entry, user string
+}
+
 var (
-	ENTRIES = []string{"First entry"}
+	ENTRIES  = []Entry{
+		{"No names. We are nameless!", "cerealkiller"},
+    	{"HACK THE PLANET!!!", "crashoverride"},
+	}
+	SESSIONS = map[string]map[string]string{}
+	LOGINS   = map[string]string{
+		"crashoverride": "0cool",
+		"cerealkiller":  "emmanuel",
+	}
 )
 
 func main() {
@@ -74,18 +87,34 @@ func handle_connection(conn net.Conn) {
 		fmt.Println("\tBody: " + body)
 	}
 
-	status, body := do_request(method, url, headers, body)
+	var token string
+	if val, ok := headers["cookie"]; ok {
+		token = val[len("token="):]
+	} else {
+		token = rand.Text()
+	}
+
+	session, ok := SESSIONS[token]
+	if !ok {
+		session = make(map[string]string)
+		SESSIONS[token] = session
+	}
+	status, body := do_request(session, method, url, headers, body)
 
 	response := "HTTP/1.0 " + status + "\r\n"
 	response += "Content-length: " + strconv.Itoa(len(body)) + "\r\n"
+	if _, ok := headers["cookie"]; !ok {
+		template := "Set-Cookie: token=%s\r\n"
+		response += fmt.Sprintf(template, token)
+	}
 	response += "\r\n" + body
 	conn.Write([]byte(response))
 	// closed by defer
 }
 
-func do_request(method, url string, headers map[string]string, body string) (string, string) {
+func do_request(session map[string]string, method, url string, headers map[string]string, body string) (string, string) {
 	if method == "GET" && url == "/" {
-		return "200 OK", show_comments()
+		return "200 OK", show_comments(session)
 	} else if method == "GET" && url == "/comment.js" {
 		data, err := os.ReadFile("comment.js")
 		if err != nil {
@@ -98,30 +127,52 @@ func do_request(method, url string, headers map[string]string, body string) (str
 			fmt.Println("Error reading comment.css")
 		}
 		return "200 OK", string(data)
+	} else if method == "GET" && url == "/login" {
+		return "200 OK", login_form(session)
 	} else if method == "POST" && url == "/add" {
 		params := form_decode(body)
-		return "200 OK", add_entry(params)
+		add_entry(session, params)
+		return "200 OK", show_comments(session)
+	} else if method == "POST" && url == "/" {
+		params := form_decode(body)
+		return do_login(session, params)
 	} else {
 		return "404 Not Found", not_found(url, method)
 	}
 }
 
-func show_comments() string {
+func show_comments(session map[string]string) string {
 	out := "<!doctype html>"
 
-	out += "<form action=add method=post>"
-	out += "<p><input name=guest></p>"
-	out += "<p><button>Sign the book!</button></p>"
-	out += "</form>"
+	if user, ok := session["user"]; ok {
+		out += "<h1>Hello, " + user + "</h1>"
+		out += "<form action=add method=post>"
+		out += "<p><input name=guest></p>"
+		out += "<p><button>Sign the book!</button></p>"
+		out += "</form>"
+	} else {
+		out += "<a href=/login>Sign in to write in the guest book</a>"
+	}
 
 	out += "<link rel=stylesheet href=/comment.css>"
 	out += "<strong></strong>"
 	out += "<script src=/comment.js></script>"
 
 	for _, entry := range ENTRIES {
-		out += "<p>" + entry + "</p>"
+		out += "<p>" + entry.entry + "\n"
+		out += "<i>by " + entry.user + "</i></p>"
 	}
 	return out
+}
+
+func login_form(session map[string]string) string {
+	body := "<!doctype html>"
+	body += "<form action=/ method=post>"
+	body += "<p>Username: <input name=username></p>"
+	body += "<p>Password: <input name=password type=password></p>"
+	body += "<p><button>Log in</button></p>"
+	body += "</form>"
+	return body
 }
 
 func form_decode(body string) map[string]string {
@@ -136,15 +187,29 @@ func form_decode(body string) map[string]string {
 	return params
 }
 
-func add_entry(params map[string]string) string {
-	if param, ok := params["guest"]; ok && len(param) <= 100 {
-		ENTRIES = append(ENTRIES, param)
+func add_entry(session map[string]string, params map[string]string) {
+	if user, ok := session["user"]; !ok {
+		return
+	} else if param, ok := params["guest"]; ok && len(param) <= 100 {
+		ENTRIES = append(ENTRIES, Entry{param, user})
 	}
-	return show_comments()
+}
+
+func do_login(session map[string]string, params map[string]string) (string, string) {
+	username := params["username"]
+	password := params["password"]
+	if val, ok := LOGINS[username]; ok && val == password {
+		session["user"] = username
+		return "200 OK", show_comments(session)
+	} else {
+		out := "<!doctype html>"
+		out += fmt.Sprintf("<h1>Invalid password for %s</h1>", username)
+		return "401 Unauthorized", out
+	}
 }
 
 func not_found(url, method string) string {
 	out := "<!doctype html>"
-    out += fmt.Sprintf("<h1>%s %s not found!</h1>", method, url)
-    return out
+	out += fmt.Sprintf("<h1>%s %s not found!</h1>", method, url)
+	return out
 }
