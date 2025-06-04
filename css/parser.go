@@ -91,7 +91,7 @@ func (p *CSSParser) ignore_until(chars ...rune) rune {
 	return 0
 }
 
-func (p *CSSParser) selector() Selector {
+func (p *CSSParser) Selector() Selector {
 	var out Selector = NewTagSelector(strings.ToLower(p.word()))
 	p.whitespace()
 	for p.i < len(p.style) && p.style[p.i] != '{' {
@@ -108,7 +108,7 @@ func (p *CSSParser) Parse() []Rule {
 	for p.i < len(p.style) {
 		err := try.Try(func() {
 			p.whitespace()
-			selector := p.selector()
+			selector := p.Selector()
 			p.literal('{')
 			p.whitespace()
 			body := p.body()

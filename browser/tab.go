@@ -28,9 +28,10 @@ type Tab struct {
 	url          *url.URL
 	tab_height   float32
 	history      []*url.URL
-	nodes        *html.Node
+	Nodes        *html.Node
 	rules        []css.Rule
 	focus        *html.Node
+	js           *JSContext
 }
 
 func NewTab(tab_height float32) *Tab {
@@ -50,13 +51,31 @@ func (t *Tab) Load(url *url.URL, payload string) {
 	fmt.Println("Request took:", time.Since(start))
 
 	start = time.Now()
-	t.nodes = html.NewHTMLParser(body).Parse()
+	t.Nodes = html.NewHTMLParser(body).Parse()
 	// t.nodes.PrintTree(0)
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
+	t.js = NewJSContext(t)
+	scripts := t.scripts(t.Nodes)
+	for _, script := range scripts {
+		script_url := url.Resolve(script)
+		fmt.Println("Loading script:", script_url)
+		var code string
+		err := try.Try(func() {
+			code = script_url.Request("")
+		})
+		if err != nil {
+			fmt.Println("Error loading script:", err)
+		} else {
+			t.js.Run(script, code)
+		}
+	}
+	fmt.Println("Eval took:", time.Since(start))
+
+	start = time.Now()
 	t.rules = slices.Clone(DEFAULT_STYLE_SHEET)
-	links := t.links(t.nodes)
+	links := t.links(t.Nodes)
 	for _, link := range links {
 		style_url := url.Resolve(link)
 		fmt.Println("Loading stylesheet:", style_url)
@@ -86,6 +105,19 @@ func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
 		cmd.Execute(t.scroll-offset, *canvas)
 	}
 	fmt.Println("Drawing took:", time.Since(start))
+}
+
+func (t *Tab) scripts(nodes *html.Node) []string {
+	flatNodes := html.TreeToList(nodes)
+	links := []string{}
+	for _, node := range flatNodes {
+		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "script" {
+			if src, exists := element.Attributes["src"]; exists {
+				links = append(links, src)
+			}
+		}
+	}
+	return links
 }
 
 func (t *Tab) links(nodes *html.Node) []string {
@@ -135,20 +167,29 @@ func (t *Tab) click(x, y float32) {
 		if !ok {
 			// pass, text token
 		} else if element.Tag == "a" && element.Attributes["href"] != "" {
+			if t.js.DispatchEvent("click", elt) {
+				return
+			}
 			url := t.url.Resolve(element.Attributes["href"])
 			t.Load(url, "")
 			return
 		} else if element.Tag == "input" {
+			if t.js.DispatchEvent("click", elt) {
+				return
+			}
 			t.focus = elt
-			element.Attributes["value"] = ""
 
 			tok := elt.Token.(html.ElementToken)
+			tok.Attributes["value"] = ""
 			tok.IsFocused = true
 			elt.Token = tok
 
 			t.render()
 			return
 		} else if element.Tag == "button" {
+			if t.js.DispatchEvent("click", elt) {
+				return
+			}
 			for elt != nil {
 				if elt.Token.(html.ElementToken).Tag == "form" && elt.Token.(html.ElementToken).Attributes["action"] != "" {
 					t.submit_form(elt)
@@ -176,11 +217,11 @@ func (t *Tab) render() {
 	sort.SliceStable(t.rules, func(i, j int) bool {
 		return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
 	})
-	css.Style(t.nodes, t.rules)
+	css.Style(t.Nodes, t.rules)
 	fmt.Println("Styling took:", time.Since(start))
 
 	start = time.Now()
-	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.nodes, nil)
+	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
 	t.document.Layout.Layout()
 	// layout.PrintTree(b.document, 0)
 	t.display_list = make([]layout.Command, 0)
@@ -191,12 +232,18 @@ func (t *Tab) render() {
 
 func (t *Tab) keypress(char rune) {
 	if t.focus != nil {
+		if t.js.DispatchEvent("keydown", t.focus) {
+			return
+		}
 		t.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
 		t.render()
 	}
 }
 
 func (t *Tab) submit_form(elt *html.Node) {
+	if t.js.DispatchEvent("submit", elt) {
+		return
+	}
 	var inputs []*html.ElementToken
 	for _, node := range html.TreeToList(elt) {
 		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {

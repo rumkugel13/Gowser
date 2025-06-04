@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	urllib "net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -85,6 +86,18 @@ func handle_connection(conn net.Conn) {
 func do_request(method, url string, headers map[string]string, body string) (string, string) {
 	if method == "GET" && url == "/" {
 		return "200 OK", show_comments()
+	} else if method == "GET" && url == "/comment.js" {
+		data, err := os.ReadFile("comment.js")
+		if err != nil {
+			fmt.Println("Error reading comment.js")
+		}
+		return "200 OK", string(data)
+	} else if method == "GET" && url == "/comment.css" {
+		data, err := os.ReadFile("comment.css")
+		if err != nil {
+			fmt.Println("Error reading comment.css")
+		}
+		return "200 OK", string(data)
 	} else if method == "POST" && url == "/add" {
 		params := form_decode(body)
 		return "200 OK", add_entry(params)
@@ -100,6 +113,10 @@ func show_comments() string {
 	out += "<p><input name=guest></p>"
 	out += "<p><button>Sign the book!</button></p>"
 	out += "</form>"
+
+	out += "<link rel=stylesheet href=/comment.css>"
+	out += "<strong></strong>"
+	out += "<script src=/comment.js></script>"
 
 	for _, entry := range ENTRIES {
 		out += "<p>" + entry + "</p>"
@@ -120,7 +137,7 @@ func form_decode(body string) map[string]string {
 }
 
 func add_entry(params map[string]string) string {
-	if param, ok := params["guest"]; ok {
+	if param, ok := params["guest"]; ok && len(param) <= 100 {
 		ENTRIES = append(ENTRIES, param)
 	}
 	return show_comments()

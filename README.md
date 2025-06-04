@@ -131,3 +131,18 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] HTML chrome
 
 9.  Running Interactive Scripts
+    - [x] Basic javascript support
+    - [x] Generating handles for scripts to refer to page elements
+    - [x] Reading attribute values from page elements
+    - [x] Writing and modifying page elements
+    - [x] Attaching event listeners for scripts to respond to page events
+    - [ ] Exercises (optional)
+      - [ ] Node.children
+      - [ ] createElement / appendChild / insertBefore
+      - [ ] removeChild
+      - [ ] IDs
+      - [ ] Event bubbling
+      - [ ] Serializing HTML
+      - [ ] Script-added scripts and style sheets
+
+10. Keeping Data Private
