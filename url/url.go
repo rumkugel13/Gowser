@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+var (
+	COOKIE_JAR = map[string]string{}
+)
+
 type URL struct {
 	scheme string
 	host   string
@@ -70,6 +74,9 @@ func (u *URL) Request(payload string) string {
 	}
 
 	request := method + " " + u.path + " HTTP/1.0\r\n"
+	if cookie, ok := COOKIE_JAR[u.host]; ok {
+		request += "Cookie: " + cookie + "\r\n"
+	}
 	if payload != "" {
 		length := len(payload)
 		request += "Content-Length: " + strconv.Itoa(length) + "\r\n"
@@ -110,6 +117,10 @@ func (u *URL) Request(payload string) string {
 		split := strings.SplitN(line, ":", 2)
 		header, value := split[0], split[1]
 		responseHeaders[strings.ToLower(header)] = strings.TrimSpace(value)
+	}
+
+	if cookie, ok := responseHeaders["set-cookie"]; ok {
+		COOKIE_JAR[u.host] = cookie
 	}
 
 	if _, ok := responseHeaders["transfer-encoding"]; ok {
