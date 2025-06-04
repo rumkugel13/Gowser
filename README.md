@@ -146,3 +146,15 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Script-added scripts and style sheets
 
 10. Keeping Data Private
+    - [x] Mitigating cross-site XMLHttpRequests with the same-origin policy
+    - [x] Mitigating cross-site request forgery with nonces and with SameSite cookies
+    - [x] mitigating cross-site scripting with escaping and with Content-Security-Policy
+    - [ ] Exercises (optional)
+      - [ ] New inputs (hidden, password)
+      - [ ] Certificate errors
+      - [ ] Script access
+      - [ ] Cookie expiration
+      - [ ] Cross-origin resource sharing
+      - [ ] Referer
+
+11. Adding Visual Effects

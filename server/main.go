@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	urllib "net/url"
@@ -18,9 +19,9 @@ type Entry struct {
 }
 
 var (
-	ENTRIES  = []Entry{
+	ENTRIES = []Entry{
 		{"No names. We are nameless!", "cerealkiller"},
-    	{"HACK THE PLANET!!!", "crashoverride"},
+		{"HACK THE PLANET!!!", "crashoverride"},
 	}
 	SESSIONS = map[string]map[string]string{}
 	LOGINS   = map[string]string{
@@ -104,9 +105,11 @@ func handle_connection(conn net.Conn) {
 	response := "HTTP/1.0 " + status + "\r\n"
 	response += "Content-length: " + strconv.Itoa(len(body)) + "\r\n"
 	if _, ok := headers["cookie"]; !ok {
-		template := "Set-Cookie: token=%s\r\n"
+		template := "Set-Cookie: token=%s; SameSite=Lax\r\n"
 		response += fmt.Sprintf(template, token)
 	}
+	csp := "default-src http://localhost:8000"
+	response += "Content-Security-Policy: " + csp + "\r\n"
 	response += "\r\n" + body
 	conn.Write([]byte(response))
 	// closed by defer
@@ -145,9 +148,12 @@ func show_comments(session map[string]string) string {
 	out := "<!doctype html>"
 
 	if user, ok := session["user"]; ok {
+		nonce := rand.Text()
+		session["nonce"] = nonce
 		out += "<h1>Hello, " + user + "</h1>"
 		out += "<form action=add method=post>"
 		out += "<p><input name=guest></p>"
+		out += "<input name=nonce type=hidden value=" + nonce + ">"
 		out += "<p><button>Sign the book!</button></p>"
 		out += "</form>"
 	} else {
@@ -157,10 +163,11 @@ func show_comments(session map[string]string) string {
 	out += "<link rel=stylesheet href=/comment.css>"
 	out += "<strong></strong>"
 	out += "<script src=/comment.js></script>"
+	out += "<script src=https://example.com/evil.js></script>"
 
 	for _, entry := range ENTRIES {
-		out += "<p>" + entry.entry + "\n"
-		out += "<i>by " + entry.user + "</i></p>"
+		out += "<p>" + html.EscapeString(entry.entry) + "\n"
+		out += "<i>by " + html.EscapeString(entry.user) + "</i></p>"
 	}
 	return out
 }
@@ -188,6 +195,15 @@ func form_decode(body string) map[string]string {
 }
 
 func add_entry(session map[string]string, params map[string]string) {
+	if _, ok := session["nonce"]; !ok {
+		return
+	}
+	if _, ok := params["nonce"]; !ok {
+		return
+	}
+	if session["nonce"] != params["nonce"] {
+		return
+	}
 	if user, ok := session["user"]; !ok {
 		return
 	} else if param, ok := params["guest"]; ok && len(param) <= 100 {

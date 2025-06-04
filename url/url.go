@@ -9,8 +9,13 @@ import (
 	"strings"
 )
 
+type Param struct {
+	cookie string
+	params map[string]string
+}
+
 var (
-	COOKIE_JAR = map[string]string{}
+	COOKIE_JAR = map[string]Param{}
 )
 
 type URL struct {
@@ -50,7 +55,7 @@ func NewURL(url string) *URL {
 	return u
 }
 
-func (u *URL) Request(payload string) string {
+func (u *URL) Request(referrer *URL, payload string) (map[string]string, string) {
 	// Create connection
 	conn, err := net.Dial("tcp", u.host+":"+strconv.Itoa(u.port))
 	if err != nil {
@@ -75,7 +80,16 @@ func (u *URL) Request(payload string) string {
 
 	request := method + " " + u.path + " HTTP/1.0\r\n"
 	if cookie, ok := COOKIE_JAR[u.host]; ok {
-		request += "Cookie: " + cookie + "\r\n"
+		cookie, params := cookie.cookie, cookie.params
+		allow_cookie := true
+		if referrer != nil && GetOrDefault(params, "samesite", "none") == "lax" {
+			if method != "GET" {
+				allow_cookie = u.host == referrer.host
+			}
+		}
+		if allow_cookie {
+			request += "Cookie: " + cookie + "\r\n"
+		}
 	}
 	if payload != "" {
 		length := len(payload)
@@ -120,7 +134,24 @@ func (u *URL) Request(payload string) string {
 	}
 
 	if cookie, ok := responseHeaders["set-cookie"]; ok {
-		COOKIE_JAR[u.host] = cookie
+		params := map[string]string{}
+		if strings.Contains(cookie, ";") {
+			split := strings.SplitN(cookie, ";", 2)
+			cookie = split[0]
+			rest := split[1]
+			for _, param := range strings.Split(rest, ";") {
+				var value string
+				if strings.Contains(param, "=") {
+					split = strings.SplitN(param, "=", 2)
+					param = split[0]
+					value = split[1]
+				} else {
+					value = "true"
+				}
+				params[strings.ToLower(strings.TrimSpace(param))] = strings.ToLower(value)
+			}
+		}
+		COOKIE_JAR[u.host] = Param{cookie, params}
 	}
 
 	if _, ok := responseHeaders["transfer-encoding"]; ok {
@@ -134,7 +165,7 @@ func (u *URL) Request(payload string) string {
 	if err != nil {
 		panic("Failed to read response: " + err.Error())
 	}
-	return string(content)
+	return responseHeaders, string(content)
 }
 
 func (u *URL) String() string {
@@ -172,4 +203,15 @@ func (u *URL) Resolve(link_url string) *URL {
 	} else {
 		return NewURL(u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port) + link_url)
 	}
+}
+
+func (u *URL) Origin() string {
+	return u.scheme + "://" + u.host + ":" + strconv.Itoa(u.port)
+}
+
+func GetOrDefault(m map[string]string, param, def string) string {
+	if val, ok := m[param]; ok {
+		return val
+	}
+	return def
 }

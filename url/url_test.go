@@ -112,7 +112,7 @@ func TestURLWithTrailingSlash(t *testing.T) {
 
 func TestRequest(t *testing.T) {
 	u := NewURL("http://example.com/path")
-	response := u.Request("")
+	_, response := u.Request(u, "")
 	if response == "" {
 		t.Error("Expected non-empty response from Request()")
 	}

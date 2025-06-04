@@ -45,3 +45,15 @@ Node.prototype.dispatchEvent = function(evt) {
     }
     return evt.do_default;
 }
+
+function XMLHttpRequest() {}
+
+XMLHttpRequest.prototype.open = function(method, url, is_async) {
+    if (is_async) throw Error("Asynchronous XHR is not supported");
+    this.method = method;
+    this.url = url;
+}
+
+XMLHttpRequest.prototype.send = function(body) {
+    this.responseText = _XMLHttpRequest_send(this.method, this.url, body);
+}

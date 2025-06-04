@@ -6,10 +6,11 @@ import (
 	"gowser/html"
 	"gowser/layout"
 	"gowser/try"
-	"gowser/url"
+	u "gowser/url"
 	urllib "net/url"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	tk9_0 "modernc.org/tk9.0"
@@ -22,33 +23,45 @@ const (
 )
 
 type Tab struct {
-	display_list []layout.Command
-	scroll       float32
-	document     *layout.LayoutNode
-	url          *url.URL
-	tab_height   float32
-	history      []*url.URL
-	Nodes        *html.Node
-	rules        []css.Rule
-	focus        *html.Node
-	js           *JSContext
+	display_list    []layout.Command
+	scroll          float32
+	document        *layout.LayoutNode
+	url             *u.URL
+	tab_height      float32
+	history         []*u.URL
+	Nodes           *html.Node
+	rules           []css.Rule
+	focus           *html.Node
+	js              *JSContext
+	allowed_origins []string
 }
 
 func NewTab(tab_height float32) *Tab {
 	return &Tab{
 		scroll:     0,
 		tab_height: tab_height,
-		history:    make([]*url.URL, 0),
+		history:    make([]*u.URL, 0),
 	}
 }
 
-func (t *Tab) Load(url *url.URL, payload string) {
-	t.history = append(t.history, url)
-	t.url = url
+func (t *Tab) Load(url *u.URL, payload string) {
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
-	body := url.Request(payload)
+	headers, body := url.Request(t.url, payload)
 	fmt.Println("Request took:", time.Since(start))
+	t.history = append(t.history, url)
+	t.url = url
+
+	t.allowed_origins = nil
+	if val, ok := headers["content-security-policy"]; ok {
+		csp := strings.Fields(val)
+		if len(csp) > 0 && csp[0] == "default-src" {
+			t.allowed_origins = make([]string, 0)
+			for _, origin := range csp[1:] {
+				t.allowed_origins = append(t.allowed_origins, u.NewURL(origin).Origin())
+			}
+		}
+	}
 
 	start = time.Now()
 	t.Nodes = html.NewHTMLParser(body).Parse()
@@ -60,10 +73,14 @@ func (t *Tab) Load(url *url.URL, payload string) {
 	scripts := t.scripts(t.Nodes)
 	for _, script := range scripts {
 		script_url := url.Resolve(script)
+		if !t.allowed_request(script_url) {
+			fmt.Println("Blocked script", script_url, "due to CSP")
+			continue
+		}
 		fmt.Println("Loading script:", script_url)
 		var code string
 		err := try.Try(func() {
-			code = script_url.Request("")
+			_, code = script_url.Request(url, "")
 		})
 		if err != nil {
 			fmt.Println("Error loading script:", err)
@@ -78,10 +95,14 @@ func (t *Tab) Load(url *url.URL, payload string) {
 	links := t.links(t.Nodes)
 	for _, link := range links {
 		style_url := url.Resolve(link)
+		if !t.allowed_request(style_url) {
+			fmt.Println("Blocked stylesheet", style_url, "due to CSP")
+			continue
+		}
 		fmt.Println("Loading stylesheet:", style_url)
 		var style_body string
 		err := try.Try(func() {
-			style_body = style_url.Request("")
+			_, style_body = style_url.Request(url, "")
 		})
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
@@ -263,4 +284,8 @@ func (t *Tab) submit_form(elt *html.Node) {
 
 	url := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
 	t.Load(url, body)
+}
+
+func (t *Tab) allowed_request(url *u.URL) bool {
+	return t.allowed_origins == nil || slices.Contains(t.allowed_origins, url.Origin())
 }

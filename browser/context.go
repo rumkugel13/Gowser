@@ -62,6 +62,17 @@ func NewJSContext(tab *Tab) *JSContext {
 	if err != nil {
 		fmt.Println(err)
 	}
+	_, err = js.ctx.PushGlobalGoFunction("_XMLHttpRequest_send", func(ctx *duk.Context) int {
+		method := ctx.GetString(0) // 0 is bottom of stack [0, .., -1]
+		url := ctx.GetString(-2)   // -2 is second to top, in this case [0, -2, -1]
+		body := ctx.GetString(-1)  // -1 is top of stack is stack is laid out correctly
+		out := js.xmlHttpRequest_send(method, url, body)
+		ctx.PushString(out)
+		return 1
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
 	err = js.ctx.PevalString(RUNTIME_JS)
 	if err != nil {
 		fmt.Println(err)
@@ -144,6 +155,18 @@ func (j *JSContext) innerHTML_set(handle int, s string) {
 		child.Parent = elt
 	}
 	j.tab.render()
+}
+
+func (j *JSContext) xmlHttpRequest_send(method string, url string, body string) string {
+	full_url := j.tab.url.Resolve(url)
+	if !j.tab.allowed_request(full_url) {
+		panic("Cross-origin XHR blocked by CSP")
+	}
+	if full_url.Origin() != j.tab.url.Origin() {
+		panic("Cross-origin XHR request not allowed")
+	}
+	_, out := full_url.Request(j.tab.url, body)
+	return out
 }
 
 func load_runtime_js() {
