@@ -30,14 +30,22 @@ func NewJSContext(tab *Tab) *JSContext {
 	}
 	js.ctx.PushGlobalGoFunction("_log", log)
 	_, err := js.ctx.PushGlobalGoFunction("_querySelectorAll", func(ctx *duk.Context) int {
-		return js.querySelectorAll(ctx)
+		selector_text := ctx.SafeToString(0)
+		nodes := js.querySelectorAll(selector_text)
+		arr := ctx.PushArray()
+		for i, node := range nodes {
+			handle := js.get_handle(node)
+			ctx.PushInt(handle)
+			ctx.PutPropIndex(arr, uint(i))
+		}
+		return 1 // 1 array
 	})
 	if err != nil {
 		fmt.Println(err)
 	}
 	_, err = js.ctx.PushGlobalGoFunction("_getAttribute", func(ctx *duk.Context) int {
 		handle := ctx.GetInt(0)
-		attr := ctx.GetString(-1)
+		attr := ctx.GetString(1)
 		res := js.get_attribute(handle, attr)
 		ctx.PushString(res)
 		return 1
@@ -47,7 +55,7 @@ func NewJSContext(tab *Tab) *JSContext {
 	}
 	_, err = js.ctx.PushGlobalGoFunction("_innerHTML_set", func(ctx *duk.Context) int {
 		handle := ctx.GetInt(0)
-		s := ctx.GetString(-1)
+		s := ctx.GetString(1)
 		js.innerHTML_set(handle, s)
 		return 0
 	})
@@ -98,8 +106,7 @@ func log(ctx *duk.Context) int {
 	return 0
 }
 
-func (j *JSContext) querySelectorAll(ctx *duk.Context) int {
-	selector_text := ctx.SafeToString(0)
+func (j *JSContext) querySelectorAll(selector_text string) []*html.Node {
 	selector := css.NewCSSParser(selector_text).Selector()
 	var nodes []*html.Node
 	for _, node := range html.TreeToList(j.tab.Nodes) {
@@ -107,25 +114,19 @@ func (j *JSContext) querySelectorAll(ctx *duk.Context) int {
 			nodes = append(nodes, node)
 		}
 	}
-	arr := ctx.PushArray()
-	for i, node := range nodes {
-		handle := j.get_handle(node)
-		ctx.PushInt(handle)
-		ctx.PutPropIndex(arr, uint(i))
-	}
-	return len(nodes)
+	return nodes
 }
 
 func (j *JSContext) get_handle(elt *html.Node) int {
-    var handle int
-    if node, ok := j.node_to_handle[elt]; !ok {
-        handle = len(j.node_to_handle)
-        j.node_to_handle[elt] = handle
-        j.handle_to_node[handle] = elt
-    } else {
-        handle = node
-    }
-    return handle
+	var handle int
+	if node, ok := j.node_to_handle[elt]; !ok {
+		handle = len(j.node_to_handle)
+		j.node_to_handle[elt] = handle
+		j.handle_to_node[handle] = elt
+	} else {
+		handle = node
+	}
+	return handle
 }
 
 func (j *JSContext) get_attribute(handle int, attribute string) string {
