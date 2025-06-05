@@ -5,20 +5,20 @@ import (
 	"gowser/layout"
 	"gowser/url"
 
-	tk9_0 "modernc.org/tk9.0"
+	"golang.org/x/image/font"
 )
 
 type Chrome struct {
 	browser       *Browser
-	font          *tk9_0.FontFace
-	font_height   float32
-	padding       float32
-	tabbar_top    float32
-	tabbar_bottom float32
+	font          font.Face
+	font_height   float64
+	padding       float64
+	tabbar_top    float64
+	tabbar_bottom float64
 	newtab_rect   *layout.Rect
-	bottom        float32
-	urlbar_top    float32
-	urlbar_bottom float32
+	bottom        float64
+	urlbar_top    float64
+	urlbar_bottom float64
 	back_rect     *layout.Rect
 	address_rect  *layout.Rect
 	focus         string
@@ -28,7 +28,7 @@ type Chrome struct {
 func NewChrome(browser *Browser) *Chrome {
 	chrome := &Chrome{browser: browser, address_bar: ""}
 	chrome.font = layout.GetFont(20, "normal", "roman")
-	chrome.font_height = float32(chrome.font.MetricsLinespace(tk9_0.App))
+	chrome.font_height = layout.Linespace(chrome.font)
 
 	chrome.padding = 5
 	chrome.tabbar_top = 0
@@ -61,15 +61,15 @@ func (c *Chrome) tab_rect(i int) *layout.Rect {
 	tabs_start := c.newtab_rect.Right + c.padding
 	tab_width := layout.Measure(c.font, "Tab X") + 2*c.padding
 	return layout.NewRect(
-		tabs_start+tab_width*float32(i), c.tabbar_top,
-		tabs_start+tab_width*float32(i+1), c.tabbar_bottom,
+		tabs_start+tab_width*float64(i), c.tabbar_top,
+		tabs_start+tab_width*float64(i+1), c.tabbar_bottom,
 	)
 }
 
 func (c *Chrome) paint() []layout.Command {
 	cmds := make([]layout.Command, 0)
 
-	cmds = append(cmds, layout.NewDrawRect(layout.NewRect(0, 0, DefaultWidth, c.bottom), "white"))
+	cmds = append(cmds, layout.NewDrawRRect(layout.NewRect(0, 0, DefaultWidth, c.bottom), 0, "white"))
 	cmds = append(cmds, layout.NewDrawLine(0, c.bottom, DefaultWidth, c.bottom, "black", 1))
 
 	cmds = append(cmds, layout.NewDrawOutline(c.newtab_rect, "black", 1))
@@ -124,7 +124,7 @@ func (c *Chrome) paint() []layout.Command {
 	return cmds
 }
 
-func (c *Chrome) click(x, y float32) {
+func (c *Chrome) click(x, y float64) {
 	c.focus = ""
 	if c.newtab_rect.ContainsPoint(x, y) {
 		c.browser.NewTab(url.NewURL("https://browser.engineering/"))

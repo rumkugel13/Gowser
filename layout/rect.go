@@ -3,10 +3,10 @@ package layout
 import "fmt"
 
 type Rect struct {
-	Left, Top, Right, Bottom float32
+	Left, Top, Right, Bottom float64
 }
 
-func NewRect(left, top, right, bottom float32) *Rect {
+func NewRect(left, top, right, bottom float64) *Rect {
 	return &Rect{
 		Left:   left,
 		Top:    top,
@@ -15,7 +15,7 @@ func NewRect(left, top, right, bottom float32) *Rect {
 	}
 }
 
-func (r *Rect) ContainsPoint(x, y float32) bool {
+func (r *Rect) ContainsPoint(x, y float64) bool {
 	return x >= r.Left && x < r.Right &&
 		y >= r.Top && y < r.Bottom
 }

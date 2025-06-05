@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	tk9_0 "modernc.org/tk9.0"
+	"github.com/fogleman/gg"
 )
 
 const (
@@ -24,10 +24,10 @@ const (
 
 type Tab struct {
 	display_list    []layout.Command
-	scroll          float32
+	scroll          float64
 	document        *layout.LayoutNode
 	url             *u.URL
-	tab_height      float32
+	tab_height      float64
 	history         []*u.URL
 	Nodes           *html.Node
 	rules           []css.Rule
@@ -36,7 +36,7 @@ type Tab struct {
 	allowed_origins []string
 }
 
-func NewTab(tab_height float32) *Tab {
+func NewTab(tab_height float64) *Tab {
 	return &Tab{
 		scroll:     0,
 		tab_height: tab_height,
@@ -114,8 +114,9 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.render()
 }
 
-func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
+func (t *Tab) Draw(canvas *gg.Context, offset float64) {
 	start := time.Now()
+	// layout.PrintCommands(t.display_list)
 	for _, cmd := range t.display_list {
 		if cmd.Top() > t.scroll+t.tab_height {
 			continue // Skip items that are outside the visible area
@@ -123,7 +124,7 @@ func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
 		if cmd.Bottom() < t.scroll {
 			continue // Skip items that are above the visible area
 		}
-		cmd.Execute(t.scroll-offset, *canvas)
+		cmd.Execute(t.scroll-offset, canvas)
 	}
 	fmt.Println("Drawing took:", time.Since(start))
 }
@@ -161,7 +162,7 @@ func (t *Tab) scrollDown() {
 	t.scroll = min(t.scroll+SCROLL_STEP, max_y)
 }
 
-func (t *Tab) click(x, y float32) {
+func (t *Tab) click(x, y float64) {
 	if t.focus != nil {
 		tok := t.focus.Token.(html.ElementToken)
 		tok.IsFocused = false

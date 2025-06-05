@@ -7,7 +7,7 @@ type LayoutNode struct {
 	Layout              Layout
 	parent              *LayoutNode
 	children            []*LayoutNode
-	X, Y, Width, Height float32
+	X, Y, Width, Height float64
 }
 
 func NewLayoutNode(layout Layout, htmlNode *html.Node, parent *LayoutNode) *LayoutNode {

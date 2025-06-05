@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	tk9_0 "modernc.org/tk9.0"
+	"golang.org/x/image/font"
 )
 
 const (
@@ -70,15 +70,15 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 }
 
 type BlockLayout struct {
-	cursor_x, cursor_y float32
+	cursor_x, cursor_y float64
 	wrap               *LayoutNode
 	previous           *LayoutNode
 }
 
 func NewBlockLayout(previous *LayoutNode) *BlockLayout {
 	layout := &BlockLayout{
-		cursor_x: float32(HSTEP),
-		cursor_y: float32(VSTEP),
+		cursor_x: HSTEP,
+		cursor_y: VSTEP,
 		previous: previous,
 	}
 	return layout
@@ -110,7 +110,7 @@ func (l *BlockLayout) Layout() {
 		child.Layout.Layout()
 	}
 
-	var totalHeight float32
+	var totalHeight float64
 	for _, child := range l.wrap.children {
 		totalHeight += child.Height
 	}
@@ -130,7 +130,15 @@ func (l *BlockLayout) Paint() []Command {
 		bgcolor = "transparent"
 	}
 	if bgcolor != "transparent" {
-		rect := NewDrawRect(l.self_rect(), bgcolor)
+		radius, ok := l.wrap.Node.Style["border-radius"]
+		if !ok {
+			radius = "0px"
+		}
+		actualRadius, err := strconv.ParseFloat(strings.TrimSuffix(radius, "px"), 32)
+		if err != nil {
+			actualRadius = 0 // Default radius size if parsing fails
+		}
+		rect := NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
@@ -192,7 +200,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := int(float32(fSize) * 0.75)
+	size := fSize * 0.75
 
 	font := GetFont(size, weight, style)
 	width := Measure(font, word)
@@ -211,7 +219,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 }
 
 func (l *BlockLayout) input(node *html.Node) {
-	w := float32(INPUT_WIDTH_PX)
+	w := INPUT_WIDTH_PX
 	if l.cursor_x+w > l.wrap.Width {
 		l.new_line()
 	}
@@ -232,7 +240,7 @@ func (l *BlockLayout) input(node *html.Node) {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := int(float32(fSize) * 0.75)
+	size := fSize * 0.75
 	font := GetFont(size, weight, style)
 	l.cursor_x += w + Measure(font, " ")
 }
@@ -300,13 +308,13 @@ func (l *LineLayout) Layout() {
 		word.Layout.Layout()
 	}
 
-	var maxAscent float32
+	var maxAscent float64
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			maxAscent = max(maxAscent, float32(l.font.MetricsAscent(tk9_0.App)))
+			maxAscent = max(maxAscent, Ascent(l.font))
 		case *InputLayout:
-			maxAscent = max(maxAscent, float32(l.font.MetricsAscent(tk9_0.App)))
+			maxAscent = max(maxAscent, Ascent(l.font))
 		}
 	}
 
@@ -314,19 +322,19 @@ func (l *LineLayout) Layout() {
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			item.Y = baseline - float32(l.font.MetricsAscent(tk9_0.App))
+			item.Y = baseline - Ascent(l.font)
 		case *InputLayout:
-			item.Y = baseline - float32(l.font.MetricsAscent(tk9_0.App))
+			item.Y = baseline - Ascent(l.font)
 		}
 	}
 
-	var maxDescent float32
+	var maxDescent float64
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			maxDescent = max(maxDescent, float32(l.font.MetricsDescent(tk9_0.App)))
+			maxDescent = max(maxDescent, Descent(l.font))
 		case *InputLayout:
-			maxDescent = max(maxDescent, float32(l.font.MetricsDescent(tk9_0.App)))
+			maxDescent = max(maxDescent, Descent(l.font))
 		}
 	}
 
@@ -353,7 +361,7 @@ type TextLayout struct {
 	word     string
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     *tk9_0.FontFace
+	font     font.Face
 }
 
 func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
@@ -373,7 +381,7 @@ func (l *TextLayout) Layout() {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := int(float32(fSize) * 0.75)
+	size := fSize * 0.75
 	l.font = GetFont(size, weight, style)
 
 	l.wrap.Width = Measure(l.font, l.word)
@@ -393,7 +401,7 @@ func (l *TextLayout) Layout() {
 		l.wrap.X = l.wrap.parent.X
 	}
 
-	l.wrap.Height = float32(l.font.MetricsLinespace(tk9_0.App))
+	l.wrap.Height = Linespace(l.font)
 }
 
 func (l *TextLayout) String() string {
@@ -416,7 +424,7 @@ func (d *TextLayout) Wrap(wrap *LayoutNode) {
 type InputLayout struct {
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     *tk9_0.FontFace
+	font     font.Face
 }
 
 func NewInputLayout(previous *LayoutNode) *InputLayout {
@@ -435,7 +443,7 @@ func (l *InputLayout) Layout() {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := int(float32(fSize) * 0.75)
+	size := fSize * 0.75
 	l.font = GetFont(size, weight, style)
 
 	l.wrap.Width = INPUT_WIDTH_PX
@@ -455,7 +463,7 @@ func (l *InputLayout) Layout() {
 		l.wrap.X = l.wrap.parent.X
 	}
 
-	l.wrap.Height = float32(l.font.MetricsLinespace(tk9_0.App))
+	l.wrap.Height = Linespace(l.font)
 }
 
 func (l *InputLayout) String() string {
@@ -469,7 +477,15 @@ func (l *InputLayout) Paint() []Command {
 		bgcolor = "transparent"
 	}
 	if bgcolor != "transparent" {
-		rect := NewDrawRect(l.self_rect(), bgcolor)
+		radius, ok := l.wrap.Node.Style["border-radius"]
+		if !ok {
+			radius = "0px"
+		}
+		actualRadius, err := strconv.ParseFloat(strings.TrimSuffix(radius, "px"), 32)
+		if err != nil {
+			actualRadius = 0 // Default radius size if parsing fails
+		}
+		rect := NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 

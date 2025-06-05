@@ -1,7 +1,11 @@
 package layout
 
 import (
-	"modernc.org/tk9.0"
+	"fmt"
+
+	"github.com/adrg/sysfont"
+	"github.com/fogleman/gg"
+	fnt "golang.org/x/image/font"
 )
 
 var (
@@ -9,51 +13,47 @@ var (
 )
 
 type FontKey struct {
-	Size   int
+	Size   float64
 	Weight string
 	Style  string
 }
 
 type FontItem struct {
-	Font  *tk9_0.FontFace
+	Font  fnt.Face
 	Label string
 }
 
-func GetFont(size int, weight, style string) *tk9_0.FontFace {
+func GetFont(size float64, weight, style string) fnt.Face {
 	key := FontKey{Size: size, Weight: weight, Style: style}
 	if fontItem, exists := FONT_CACHE[key]; exists {
 		return fontItem.Font
 	}
 
-	fontFace := tk9_0.NewFont(tk9_0.Size(size), tk9_0.Slant(style), tk9_0.Weight(weight))
-	label := fontFace.String()
+	font := sysfont.NewFinder(nil).Match(weight + " " + style)
+	fontFace, err := gg.LoadFontFace(font.Filename, size)
+	if err != nil {
+		panic(fmt.Sprint("Error loading font:", font))
+	}
+	fmt.Println("Loading font:", font, "at size", size)
+
+	label := font.Name
 	FONT_CACHE[key] = FontItem{Font: fontFace, Label: label}
 	return fontFace
 }
 
-func Measure(font *tk9_0.FontFace, text string) float32 {
-	// Measure the width of the text using the font metrics
-	// This is a simplified version of text width measurement based on character widths.
-	// In a real implementation, you would use the font's metrics to get accurate widths.
-	var width float32
-	ascent := float32(font.MetricsAscent(tk9_0.App))
-	for _, r := range text {
-		switch r {
-		case '!', '\'', '`', ',', '.', 'i', 'l', ':', ';', '|':
-			width += ascent * 0.2
-		case '"', '(', ')', '[', ']', '{', '}', 'f', 'I', 'j', 'r', 't', '\\', '/', ' ':
-			width += ascent * 0.35
-		case '*', '+', '-', '=', '<', '>', 'a', 'b', 'c', 'd', 'e', 'g', 'h', 'k', 'o', 'p', 'q', 's', 'u', 'v', 'x', 'y', 'z', '~':
-			width += ascent * 0.55
-		case '#', '$', '%', '&', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Y', 'Z':
-			width += ascent * 0.7
-		case 'M', 'W', 'm', 'w', '—':
-			width += ascent * 0.9
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			width += ascent * 0.6
-		default:
-			width += ascent * 0.6
-		}
-	}
-	return width
+func Measure(font fnt.Face, text string) float64 {
+	return float64(fnt.MeasureString(font, text)) / 64.0
+}
+
+func Linespace(font fnt.Face) float64 {
+	// note: without the scaling factor, the lines are too narrow
+	return float64(font.Metrics().Height) / 64.0 * 96 / 72
+}
+
+func Ascent(font fnt.Face) float64 {
+	return float64(font.Metrics().Ascent) / 64.0
+}
+
+func Descent(font fnt.Face) float64 {
+	return float64(font.Metrics().Descent) / 64.0
 }
