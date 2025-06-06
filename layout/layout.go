@@ -3,11 +3,12 @@ package layout
 import (
 	"fmt"
 	"gowser/html"
+	"image/color"
 	"slices"
 	"strconv"
 	"strings"
 
-	"golang.org/x/image/font"
+	"github.com/tdewolff/canvas"
 )
 
 const (
@@ -202,7 +203,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	}
 	size := fSize * 0.75
 
-	font := GetFont(size, weight, style)
+	font := GetFont(size, weight, style, color.Black)
 	width := Measure(font, word)
 	if l.cursor_x+width > l.wrap.Width {
 		l.new_line()
@@ -241,7 +242,7 @@ func (l *BlockLayout) input(node *html.Node) {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	font := GetFont(size, weight, style)
+	font := GetFont(size, weight, style, color.Black)
 	l.cursor_x += w + Measure(font, " ")
 }
 
@@ -361,7 +362,7 @@ type TextLayout struct {
 	word     string
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     font.Face
+	font     *canvas.FontFace
 }
 
 func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
@@ -382,7 +383,7 @@ func (l *TextLayout) Layout() {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	l.font = GetFont(size, weight, style)
+	l.font = GetFont(size, weight, style, color.Black)
 
 	l.wrap.Width = Measure(l.font, l.word)
 
@@ -424,7 +425,7 @@ func (d *TextLayout) Wrap(wrap *LayoutNode) {
 type InputLayout struct {
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     font.Face
+	font     *canvas.FontFace
 }
 
 func NewInputLayout(previous *LayoutNode) *InputLayout {
@@ -444,7 +445,7 @@ func (l *InputLayout) Layout() {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	l.font = GetFont(size, weight, style)
+	l.font = GetFont(size, weight, style, color.Black)
 
 	l.wrap.Width = INPUT_WIDTH_PX
 

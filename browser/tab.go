@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fogleman/gg"
+	"github.com/tdewolff/canvas"
 )
 
 const (
@@ -114,7 +114,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.render()
 }
 
-func (t *Tab) Raster(canvas *gg.Context) {
+func (t *Tab) Raster(canvas *canvas.Context) {
 	// layout.PrintCommands(t.display_list)
 	for _, cmd := range t.display_list {
 		cmd.Execute(canvas)

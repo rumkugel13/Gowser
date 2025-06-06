@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"gowser/display"
 
-	"github.com/fogleman/gg"
-	"golang.org/x/image/font"
+	"github.com/tdewolff/canvas"
 )
 
 type Command interface {
-	Execute(*gg.Context)
+	Execute(*canvas.Context)
 	Top() float64
 	Bottom() float64
 	String() string
@@ -18,23 +17,23 @@ type Command interface {
 type DrawText struct {
 	rect  *Rect
 	text  string
-	font  font.Face
+	font  *canvas.FontFace
 	color string
 }
 
-func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
+func NewDrawText(x1, y1 float64, text string, font *canvas.FontFace, color string) *DrawText {
 	return &DrawText{
-		rect:  NewRect(x1, y1, x1+Measure(font, text), y1-Linespace(font)),
+		rect:  NewRect(x1, y1, x1+font.TextWidth(text), y1-font.LineHeight()),
 		text:  text,
 		font:  font,
 		color: color,
 	}
 }
 
-func (d *DrawText) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
-	canvas.SetFontFace(d.font)
-	canvas.DrawStringAnchored(d.text, d.rect.Left, d.rect.Top, 0, 1)
+func (d *DrawText) Execute(ctx *canvas.Context) {
+	ctx.SetFillColor(display.ParseColor(d.color))
+	// text renders at baseline, not topleft
+	ctx.DrawText(d.rect.Left, d.rect.Top+d.font.Metrics().Ascent, canvas.NewTextLine(d.font, d.text, canvas.Top))
 }
 
 func (d *DrawText) Top() float64 {
@@ -50,23 +49,22 @@ func (d *DrawText) String() string {
 }
 
 type DrawRRect struct {
-	rect  *Rect
+	rect   *Rect
 	radius float64
-	color string
+	color  string
 }
 
 func NewDrawRRect(rect *Rect, radius float64, color string) *DrawRRect {
 	return &DrawRRect{
-		rect:  rect,
+		rect:   rect,
 		radius: radius,
-		color: color,
+		color:  color,
 	}
 }
 
-func (d *DrawRRect) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRoundedRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top, d.radius)
-	canvas.Fill()
+func (d *DrawRRect) Execute(ctx *canvas.Context) {
+	ctx.SetFillColor(display.ParseColor(d.color))
+	ctx.DrawPath(d.rect.Left, d.rect.Right, canvas.RoundedRectangle(d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top, d.radius))
 }
 
 func (d *DrawRRect) Top() float64 {
@@ -101,11 +99,16 @@ func NewDrawOutline(rect *Rect, color string, thickness float64) *DrawOutline {
 	}
 }
 
-func (d *DrawOutline) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top)
-	canvas.SetLineWidth(d.thickness)
-	canvas.Stroke()
+func (d *DrawOutline) Execute(ctx *canvas.Context) {
+	ctx.SetStrokeWidth(d.thickness)
+	ctx.SetStrokeColor(display.ParseColor(d.color))
+	ctx.MoveTo(d.rect.Left, d.rect.Top)
+	ctx.LineTo(d.rect.Right, d.rect.Top)
+	ctx.LineTo(d.rect.Right, d.rect.Bottom)
+	ctx.LineTo(d.rect.Left, d.rect.Bottom)
+	ctx.Close()
+	ctx.Stroke()
+	// ctx.DrawPath(d.rect.Left, d.rect.Top, canvas.Rectangle(d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top))
 }
 
 func (d *DrawOutline) Top() float64 {
@@ -134,11 +137,12 @@ func NewDrawLine(x1, y1, x2, y2 float64, color string, thickness float64) *DrawL
 	}
 }
 
-func (d *DrawLine) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
-	canvas.SetLineWidth(d.thickness)
-	canvas.DrawLine(d.rect.Left, d.rect.Top, d.rect.Right, d.rect.Bottom)
-	canvas.Stroke()
+func (d *DrawLine) Execute(ctx *canvas.Context) {
+	ctx.SetStrokeColor(display.ParseColor(d.color))
+	ctx.SetStrokeWidth(d.thickness)
+	ctx.MoveTo(d.rect.Left, d.rect.Top)
+	ctx.LineTo(d.rect.Right, d.rect.Bottom)
+	ctx.Stroke()
 }
 
 func (d *DrawLine) Top() float64 {

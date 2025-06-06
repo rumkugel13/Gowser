@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"gowser/layout"
 	"gowser/url"
+	"image/color"
 
-	"golang.org/x/image/font"
+	"github.com/tdewolff/canvas"
 )
 
 type Chrome struct {
 	browser       *Browser
-	font          font.Face
+	font          *canvas.FontFace
 	font_height   float64
 	padding       float64
 	tabbar_top    float64
@@ -27,7 +28,7 @@ type Chrome struct {
 
 func NewChrome(browser *Browser) *Chrome {
 	chrome := &Chrome{browser: browser, address_bar: ""}
-	chrome.font = layout.GetFont(20, "normal", "roman")
+	chrome.font = layout.GetFont(20, "normal", "roman", color.Black)
 	chrome.font_height = layout.Linespace(chrome.font)
 
 	chrome.padding = 5
@@ -59,7 +60,7 @@ func NewChrome(browser *Browser) *Chrome {
 
 func (c *Chrome) tab_rect(i int) *layout.Rect {
 	tabs_start := c.newtab_rect.Right + c.padding
-	tab_width := layout.Measure(c.font, "Tab X") + 2*c.padding
+	tab_width := c.font.TextWidth("Tab X") + 2*c.padding
 	return layout.NewRect(
 		tabs_start+tab_width*float64(i), c.tabbar_top,
 		tabs_start+tab_width*float64(i+1), c.tabbar_bottom,
@@ -104,7 +105,7 @@ func (c *Chrome) paint() []layout.Command {
 			c.address_rect.Top,
 			c.address_bar, c.font, "black",
 		))
-		w := layout.Measure(c.font, c.address_bar)
+		w := c.font.TextWidth(c.address_bar)
 		cmds = append(cmds, layout.NewDrawLine(
 			c.address_rect.Left+c.padding+w,
 			c.address_rect.Top,

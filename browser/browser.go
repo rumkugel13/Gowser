@@ -5,15 +5,14 @@ import (
 	"gowser/css"
 	"gowser/layout"
 	"gowser/url"
-	"image"
 	"image/color"
-	"image/draw"
 	"math"
 	"os"
 	"time"
 	"unsafe"
 
-	"github.com/fogleman/gg"
+	"github.com/tdewolff/canvas"
+	"github.com/tdewolff/canvas/renderers/rasterizer"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -25,15 +24,15 @@ type Browser struct {
 	tabs           []*Tab
 	active_tab     *Tab
 	sdl_window     *sdl.Window
-	root_surface   *gg.Context
+	root_surface   *canvas.Canvas
 	chrome         *Chrome
 	focus          string
 	RED_MASK       uint32
 	GREEN_MASK     uint32
 	BLUE_MASK      uint32
 	ALPHA_MASK     uint32
-	chrome_surface *gg.Context
-	tab_surface    *gg.Context
+	chrome_surface *canvas.Canvas
+	tab_surface    *canvas.Canvas
 }
 
 func NewBrowser() *Browser {
@@ -49,7 +48,7 @@ func NewBrowser() *Browser {
 	}
 	browser.sdl_window = window
 
-	browser.root_surface = gg.NewContext(WIDTH, HEIGHT)
+	browser.root_surface = canvas.New(WIDTH, HEIGHT)
 
 	if sdl.BYTEORDER == sdl.BIG_ENDIAN {
 		browser.RED_MASK = 0xff000000
@@ -64,7 +63,7 @@ func NewBrowser() *Browser {
 	}
 
 	browser.chrome = NewChrome(browser)
-	browser.chrome_surface = gg.NewContext(WIDTH, int(browser.chrome.bottom))
+	browser.chrome_surface = canvas.New(WIDTH, browser.chrome.bottom)
 	browser.tab_surface = nil
 	load_default_style_sheet()
 	return browser
@@ -72,51 +71,33 @@ func NewBrowser() *Browser {
 
 func (b *Browser) Draw() {
 	start := time.Now()
-	canvas := b.root_surface
-	canvas.SetColor(color.White)
-	canvas.Clear()
+	b.root_surface.Reset()
+	ctx := canvas.NewContext(b.root_surface)
+	ctx.SetCoordSystem(canvas.CartesianIV)
+	ctx.SetFillColor(color.White)
+	ctx.DrawPath(0, 0, canvas.Rectangle(WIDTH, HEIGHT))
 
-	// fast:
-	{
-		srcRect := image.Rect(0, int(b.active_tab.scroll), WIDTH, b.tab_surface.Height())
-		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, b.tab_surface.Height())
-		draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
-
-		chromeRect := image.Rect(0, 0, WIDTH, int(b.chrome.bottom))
-		draw.Draw(canvas.Image().(*image.RGBA), chromeRect, b.chrome_surface.Image(), chromeRect.Min, draw.Src)
-	}
-
-	// slow:
 	// {
-	// 	canvas.ResetClip()
-	// 	tab_rect := layout.NewRect(0, b.chrome.bottom, WIDTH, HEIGHT)
-	// 	tab_offset := b.chrome.bottom - b.active_tab.scroll
-	// 	canvas.Push()
-	// 	canvas.DrawRectangle(tab_rect.Left, tab_rect.Top, tab_rect.Right-tab_rect.Left, tab_rect.Bottom-tab_rect.Top)
-	// 	canvas.Clip()
-	// 	canvas.Translate(0, tab_offset)
-	// 	canvas.DrawImage(b.tab_surface.Image(), 0, 0)
-	// 	canvas.Pop()
+	// 	srcRect := image.Rect(0, int(b.active_tab.scroll), WIDTH, int(b.tab_surface.H))
+	// 	dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, int(b.tab_surface.H))
+	// 	draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
 
-	// 	canvas.ResetClip()
-	// 	chrome_rect := layout.NewRect(0, 0, WIDTH, b.chrome.bottom)
-	// 	canvas.Push()
-	// 	canvas.DrawRectangle(chrome_rect.Left, chrome_rect.Top, chrome_rect.Right-chrome_rect.Left, chrome_rect.Bottom-chrome_rect.Top)
-	// 	canvas.Clip()
-	// 	canvas.DrawImage(b.chrome_surface.Image(), 0, 0)
-	// 	canvas.Pop()
+	// 	chromeRect := image.Rect(0, 0, WIDTH, int(b.chrome.bottom))
+	// 	draw.Draw(canvas.Image().(*image.RGBA), chromeRect, b.chrome_surface.Image(), chromeRect.Min, draw.Src)
 	// }
 
-	gg_img := b.root_surface.Image()
-	gg_bytes, ok := gg_img.(*image.RGBA)
-	if !ok {
-		panic("Image is not RGBA")
+	{
+		tab_offset := -b.chrome.bottom + b.active_tab.scroll
+		b.tab_surface.RenderViewTo(b.root_surface, canvas.Identity.Translate(0, HEIGHT-b.tab_surface.H+tab_offset))
+		b.chrome_surface.RenderViewTo(b.root_surface, canvas.Identity.Translate(0, HEIGHT-b.chrome_surface.H))
 	}
+
+	img := rasterizer.Draw(b.root_surface, canvas.DPMM(1), canvas.DefaultColorSpace)
 
 	depth := 32
 	pitch := int(4 * WIDTH)
 	sdl_surface, err := sdl.CreateRGBSurfaceFrom(
-		unsafe.Pointer(&gg_bytes.Pix[0]),
+		unsafe.Pointer(&img.Pix[0]),
 		WIDTH, HEIGHT, depth, pitch,
 		b.RED_MASK, b.GREEN_MASK, b.BLUE_MASK, b.ALPHA_MASK,
 	)
@@ -200,27 +181,31 @@ func (b *Browser) raster_tab() {
 	start := time.Now()
 	tab_height := math.Ceil(b.active_tab.document.Height + 2*layout.VSTEP)
 
-	if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
-		b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
+	if b.tab_surface == nil || tab_height != float64(b.tab_surface.H) {
+		b.tab_surface = canvas.New(WIDTH, tab_height)
 	}
 
-	canvas := b.tab_surface
-	canvas.SetColor(color.White)
-	canvas.Clear()
-	b.active_tab.Raster(canvas)
+	b.tab_surface.Reset()
+	ctx := canvas.NewContext(b.tab_surface)
+	ctx.SetCoordSystem(canvas.CartesianIV)
+	ctx.SetFillColor(color.White)
+	ctx.DrawPath(0, 0, canvas.Rectangle(b.tab_surface.W, b.tab_surface.H))
+	b.active_tab.Raster(ctx)
 	fmt.Println("Tab raster took:", time.Since(start))
 }
 
 func (b *Browser) raster_chrome() {
 	start := time.Now()
-	canvas := b.chrome_surface
-	canvas.SetColor(color.White)
-	canvas.Clear()
+	b.chrome_surface.Reset()
+	ctx := canvas.NewContext(b.chrome_surface)
+	ctx.SetCoordSystem(canvas.CartesianIV)
+	ctx.SetFillColor(color.White)
+	ctx.DrawPath(0, 0, canvas.Rectangle(b.chrome_surface.W, b.chrome_surface.H))
 
 	cmds := b.chrome.paint()
 	// layout.PrintCommands(cmds)
 	for _, cmd := range cmds {
-		cmd.Execute(canvas)
+		cmd.Execute(ctx)
 	}
 	fmt.Println("Chrome raster took:", time.Since(start))
 }
