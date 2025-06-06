@@ -49,7 +49,7 @@ func NewChrome(browser *Browser) *Chrome {
 	chrome.address_rect = layout.NewRect(
 		chrome.back_rect.Top+chrome.padding,
 		chrome.urlbar_top+chrome.padding,
-		DefaultWidth-chrome.padding,
+		WIDTH-chrome.padding,
 		chrome.urlbar_bottom-chrome.padding,
 	)
 
@@ -69,8 +69,8 @@ func (c *Chrome) tab_rect(i int) *layout.Rect {
 func (c *Chrome) paint() []layout.Command {
 	cmds := make([]layout.Command, 0)
 
-	cmds = append(cmds, layout.NewDrawRRect(layout.NewRect(0, 0, DefaultWidth, c.bottom), 0, "white"))
-	cmds = append(cmds, layout.NewDrawLine(0, c.bottom, DefaultWidth, c.bottom, "black", 1))
+	cmds = append(cmds, layout.NewDrawRRect(layout.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
+	cmds = append(cmds, layout.NewDrawLine(0, c.bottom, WIDTH, c.bottom, "black", 1))
 
 	cmds = append(cmds, layout.NewDrawOutline(c.newtab_rect, "black", 1))
 	cmds = append(cmds, layout.NewDrawText(
@@ -86,7 +86,7 @@ func (c *Chrome) paint() []layout.Command {
 		cmds = append(cmds, layout.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, "black"))
 		if tab == c.browser.active_tab {
 			cmds = append(cmds, layout.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, "black", 1))
-			cmds = append(cmds, layout.NewDrawLine(bounds.Right, bounds.Bottom, DefaultWidth, bounds.Bottom, "black", 1))
+			cmds = append(cmds, layout.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, "black", 1))
 		}
 	}
 
@@ -130,6 +130,9 @@ func (c *Chrome) click(x, y float64) {
 		c.browser.NewTab(url.NewURL("https://browser.engineering/"))
 	} else if c.back_rect.ContainsPoint(x, y) {
 		c.browser.active_tab.go_back()
+		c.browser.raster_chrome()
+		c.browser.raster_tab()
+		c.browser.Draw()
 	} else if c.address_rect.ContainsPoint(x, y) {
 		c.focus = "address bar"
 		c.address_bar = ""
@@ -139,6 +142,7 @@ func (c *Chrome) click(x, y float64) {
 				c.browser.active_tab = tab
 			}
 		}
+		c.browser.raster_tab()
 	}
 }
 

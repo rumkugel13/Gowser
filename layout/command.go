@@ -9,7 +9,7 @@ import (
 )
 
 type Command interface {
-	Execute(float64, *gg.Context)
+	Execute(*gg.Context)
 	Top() float64
 	Bottom() float64
 	String() string
@@ -31,10 +31,10 @@ func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *Dra
 	}
 }
 
-func (d *DrawText) Execute(scroll float64, canvas *gg.Context) {
+func (d *DrawText) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
 	canvas.SetFontFace(d.font)
-	canvas.DrawStringAnchored(d.text, d.rect.Left, d.rect.Top-scroll, 0, 1)
+	canvas.DrawStringAnchored(d.text, d.rect.Left, d.rect.Top, 0, 1)
 }
 
 func (d *DrawText) Top() float64 {
@@ -63,9 +63,9 @@ func NewDrawRRect(rect *Rect, radius float64, color string) *DrawRRect {
 	}
 }
 
-func (d *DrawRRect) Execute(scroll float64, canvas *gg.Context) {
+func (d *DrawRRect) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRoundedRectangle(d.rect.Left, d.rect.Top-scroll, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top, d.radius)
+	canvas.DrawRoundedRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top, d.radius)
 	canvas.Fill()
 }
 
@@ -101,9 +101,9 @@ func NewDrawOutline(rect *Rect, color string, thickness float64) *DrawOutline {
 	}
 }
 
-func (d *DrawOutline) Execute(scroll float64, canvas *gg.Context) {
+func (d *DrawOutline) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRectangle(d.rect.Left, d.rect.Top-scroll, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top)
+	canvas.DrawRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top)
 	canvas.SetLineWidth(d.thickness)
 	canvas.Stroke()
 }
@@ -134,10 +134,10 @@ func NewDrawLine(x1, y1, x2, y2 float64, color string, thickness float64) *DrawL
 	}
 }
 
-func (d *DrawLine) Execute(scroll float64, canvas *gg.Context) {
+func (d *DrawLine) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
 	canvas.SetLineWidth(d.thickness)
-	canvas.DrawLine(d.rect.Left, d.rect.Top-scroll, d.rect.Right, d.rect.Bottom-scroll)
+	canvas.DrawLine(d.rect.Left, d.rect.Top, d.rect.Right, d.rect.Bottom)
 	canvas.Stroke()
 }
 

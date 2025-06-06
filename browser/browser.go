@@ -1,13 +1,16 @@
 package browser
 
 import (
-	// "gowser/layout"
 	"fmt"
 	"gowser/css"
+	"gowser/layout"
 	"gowser/url"
 	"image"
 	"image/color"
+	"image/draw"
+	"math"
 	"os"
+	"time"
 	"unsafe"
 
 	"github.com/fogleman/gg"
@@ -19,16 +22,18 @@ var (
 )
 
 type Browser struct {
-	tabs         []*Tab
-	active_tab   *Tab
-	sdl_window   *sdl.Window
-	root_surface *gg.Context
-	chrome       *Chrome
-	focus        string
-	RED_MASK     uint32
-	GREEN_MASK   uint32
-	BLUE_MASK    uint32
-	ALPHA_MASK   uint32
+	tabs           []*Tab
+	active_tab     *Tab
+	sdl_window     *sdl.Window
+	root_surface   *gg.Context
+	chrome         *Chrome
+	focus          string
+	RED_MASK       uint32
+	GREEN_MASK     uint32
+	BLUE_MASK      uint32
+	ALPHA_MASK     uint32
+	chrome_surface *gg.Context
+	tab_surface    *gg.Context
 }
 
 func NewBrowser() *Browser {
@@ -38,13 +43,13 @@ func NewBrowser() *Browser {
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
-		DefaultWidth, DefaultHeight, sdl.WINDOW_SHOWN)
+		WIDTH, HEIGHT, sdl.WINDOW_SHOWN)
 	if err != nil {
 		panic("Could not create sdl window")
 	}
 	browser.sdl_window = window
 
-	browser.root_surface = gg.NewContext(DefaultWidth, DefaultHeight)
+	browser.root_surface = gg.NewContext(WIDTH, HEIGHT)
 
 	if sdl.BYTEORDER == sdl.BIG_ENDIAN {
 		browser.RED_MASK = 0xff000000
@@ -59,21 +64,48 @@ func NewBrowser() *Browser {
 	}
 
 	browser.chrome = NewChrome(browser)
+	browser.chrome_surface = gg.NewContext(WIDTH, int(browser.chrome.bottom))
+	browser.tab_surface = nil
 	load_default_style_sheet()
 	return browser
 }
 
 func (b *Browser) Draw() {
+	start := time.Now()
 	canvas := b.root_surface
 	canvas.SetColor(color.White)
 	canvas.Clear()
-	b.active_tab.Draw(canvas, b.chrome.bottom)
 
-	cmds := b.chrome.paint()
-	// layout.PrintCommands(cmds)
-	for _, cmd := range cmds {
-		cmd.Execute(0, canvas)
+	// fast:
+	{
+		srcRect := image.Rect(0, int(b.active_tab.scroll), WIDTH, b.tab_surface.Height())
+		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, b.tab_surface.Height())
+		draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
+
+		chromeRect := image.Rect(0, 0, WIDTH, int(b.chrome.bottom))
+		draw.Draw(canvas.Image().(*image.RGBA), chromeRect, b.chrome_surface.Image(), chromeRect.Min, draw.Src)
 	}
+
+	// slow:
+	// {
+	// 	canvas.ResetClip()
+	// 	tab_rect := layout.NewRect(0, b.chrome.bottom, WIDTH, HEIGHT)
+	// 	tab_offset := b.chrome.bottom - b.active_tab.scroll
+	// 	canvas.Push()
+	// 	canvas.DrawRectangle(tab_rect.Left, tab_rect.Top, tab_rect.Right-tab_rect.Left, tab_rect.Bottom-tab_rect.Top)
+	// 	canvas.Clip()
+	// 	canvas.Translate(0, tab_offset)
+	// 	canvas.DrawImage(b.tab_surface.Image(), 0, 0)
+	// 	canvas.Pop()
+
+	// 	canvas.ResetClip()
+	// 	chrome_rect := layout.NewRect(0, 0, WIDTH, b.chrome.bottom)
+	// 	canvas.Push()
+	// 	canvas.DrawRectangle(chrome_rect.Left, chrome_rect.Top, chrome_rect.Right-chrome_rect.Left, chrome_rect.Bottom-chrome_rect.Top)
+	// 	canvas.Clip()
+	// 	canvas.DrawImage(b.chrome_surface.Image(), 0, 0)
+	// 	canvas.Pop()
+	// }
 
 	gg_img := b.root_surface.Image()
 	gg_bytes, ok := gg_img.(*image.RGBA)
@@ -82,10 +114,10 @@ func (b *Browser) Draw() {
 	}
 
 	depth := 32
-	pitch := int(4 * DefaultWidth)
+	pitch := int(4 * WIDTH)
 	sdl_surface, err := sdl.CreateRGBSurfaceFrom(
 		unsafe.Pointer(&gg_bytes.Pix[0]),
-		DefaultWidth, DefaultHeight, depth, pitch,
+		WIDTH, HEIGHT, depth, pitch,
 		b.RED_MASK, b.GREEN_MASK, b.BLUE_MASK, b.ALPHA_MASK,
 	)
 	if err != nil {
@@ -93,20 +125,23 @@ func (b *Browser) Draw() {
 	}
 	defer sdl_surface.Free()
 
-	rect := &sdl.Rect{X: 0, Y: 0, W: DefaultWidth, H: DefaultHeight}
+	rect := &sdl.Rect{X: 0, Y: 0, W: WIDTH, H: HEIGHT}
 	window_surface, err := b.sdl_window.GetSurface()
 	if err != nil {
 		panic("Cannot get window surface")
 	}
 	sdl_surface.Blit(rect, window_surface, rect)
 	b.sdl_window.UpdateSurface()
+	fmt.Println("Draw took:", time.Since(start))
 }
 
 func (b *Browser) NewTab(url *url.URL) {
-	new_tab := NewTab(DefaultHeight - b.chrome.bottom)
+	new_tab := NewTab(HEIGHT - b.chrome.bottom)
 	new_tab.Load(url, "")
 	b.active_tab = new_tab
 	b.tabs = append(b.tabs, new_tab)
+	b.raster_chrome()
+	b.raster_tab()
 	b.Draw()
 }
 
@@ -123,11 +158,17 @@ func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
 	if float64(e.Y) < b.chrome.bottom {
 		b.focus = ""
 		b.chrome.click(float64(e.X), float64(e.Y))
+		b.raster_chrome()
 	} else {
 		b.focus = "content"
 		b.chrome.blur()
+		url := b.active_tab.url
 		tab_y := float64(e.Y) - b.chrome.bottom
 		b.active_tab.click(float64(e.X), tab_y)
+		if b.active_tab.url != url {
+			b.raster_chrome()
+		}
+		b.raster_tab()
 	}
 
 	b.Draw()
@@ -139,16 +180,49 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 		return
 	}
 	if b.chrome.keypress(rune(char)) {
+		b.raster_chrome()
 		b.Draw()
 	} else if b.focus == "content" {
 		b.active_tab.keypress(rune(char))
+		b.raster_tab()
 		b.Draw()
 	}
 }
 
 func (b *Browser) HandleEnter() {
 	b.chrome.enter()
+	b.raster_chrome()
+	b.raster_tab()
 	b.Draw()
+}
+
+func (b *Browser) raster_tab() {
+	start := time.Now()
+	tab_height := math.Ceil(b.active_tab.document.Height + 2*layout.VSTEP)
+
+	if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
+		b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
+	}
+
+	canvas := b.tab_surface
+	canvas.SetColor(color.White)
+	canvas.Clear()
+	b.active_tab.Raster(canvas)
+	fmt.Println("Tab raster took:", time.Since(start))
+}
+
+func (b *Browser) raster_chrome() {
+	start := time.Now()
+	canvas := b.chrome_surface
+	canvas.SetColor(color.White)
+	canvas.Clear()
+
+	cmds := b.chrome.paint()
+	// layout.PrintCommands(cmds)
+	for _, cmd := range cmds {
+		cmd.Execute(canvas)
+	}
+	fmt.Println("Chrome raster took:", time.Since(start))
 }
 
 func load_default_style_sheet() {

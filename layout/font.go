@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/adrg/sysfont"
 	"github.com/fogleman/gg"
@@ -42,12 +43,12 @@ func GetFont(size float64, weight, style string) fnt.Face {
 }
 
 func Measure(font fnt.Face, text string) float64 {
-	return float64(fnt.MeasureString(font, text)) / 64.0
+	return math.Ceil(float64(fnt.MeasureString(font, text)) / 64.0)
 }
 
 func Linespace(font fnt.Face) float64 {
 	// note: without the scaling factor, the lines are too narrow
-	return float64(font.Metrics().Height) / 64.0 * 96 / 72
+	return math.Ceil(float64(font.Metrics().Height) / 64.0 * 96 / 72)
 }
 
 func Ascent(font fnt.Face) float64 {

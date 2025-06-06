@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	DefaultWidth  = 800.
-	DefaultHeight = 600.
-	SCROLL_STEP   = 100.
+	WIDTH       = 800.
+	HEIGHT      = 600.
+	SCROLL_STEP = 100.
 )
 
 type Tab struct {
@@ -114,19 +114,11 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.render()
 }
 
-func (t *Tab) Draw(canvas *gg.Context, offset float64) {
-	start := time.Now()
+func (t *Tab) Raster(canvas *gg.Context) {
 	// layout.PrintCommands(t.display_list)
 	for _, cmd := range t.display_list {
-		if cmd.Top() > t.scroll+t.tab_height {
-			continue // Skip items that are outside the visible area
-		}
-		if cmd.Bottom() < t.scroll {
-			continue // Skip items that are above the visible area
-		}
-		cmd.Execute(t.scroll-offset, canvas)
+		cmd.Execute(canvas)
 	}
-	fmt.Println("Drawing took:", time.Since(start))
 }
 
 func (t *Tab) scripts(nodes *html.Node) []string {
