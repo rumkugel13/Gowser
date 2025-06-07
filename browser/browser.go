@@ -23,7 +23,7 @@ var (
 
 type Browser struct {
 	tabs           []*Tab
-	active_tab     *Tab
+	ActiveTab      *Tab
 	sdl_window     *sdl.Window
 	root_surface   *gg.Context
 	chrome         *Chrome
@@ -38,8 +38,8 @@ type Browser struct {
 
 func NewBrowser() *Browser {
 	browser := &Browser{
-		tabs:       make([]*Tab, 0),
-		active_tab: nil,
+		tabs:      make([]*Tab, 0),
+		ActiveTab: nil,
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
@@ -78,7 +78,7 @@ func (b *Browser) Draw() {
 
 	// fast:
 	{
-		srcRect := image.Rect(0, int(b.active_tab.scroll), WIDTH, b.tab_surface.Height())
+		srcRect := image.Rect(0, int(b.ActiveTab.scroll), WIDTH, b.tab_surface.Height())
 		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, b.tab_surface.Height())
 		draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
 
@@ -138,7 +138,7 @@ func (b *Browser) Draw() {
 func (b *Browser) NewTab(url *url.URL) {
 	new_tab := NewTab(HEIGHT - b.chrome.bottom)
 	new_tab.Load(url, "")
-	b.active_tab = new_tab
+	b.ActiveTab = new_tab
 	b.tabs = append(b.tabs, new_tab)
 	b.raster_chrome()
 	b.raster_tab()
@@ -150,7 +150,7 @@ func (b *Browser) HandleQuit() {
 }
 
 func (b *Browser) HandleDown() {
-	b.active_tab.scrollDown()
+	b.ActiveTab.scrollDown()
 	b.Draw()
 }
 
@@ -162,10 +162,10 @@ func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
 	} else {
 		b.focus = "content"
 		b.chrome.blur()
-		url := b.active_tab.url
+		url := b.ActiveTab.url
 		tab_y := float64(e.Y) - b.chrome.bottom
-		b.active_tab.click(float64(e.X), tab_y)
-		if b.active_tab.url != url {
+		b.ActiveTab.click(float64(e.X), tab_y)
+		if b.ActiveTab.url != url {
 			b.raster_chrome()
 		}
 		b.raster_tab()
@@ -183,7 +183,7 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 		b.raster_chrome()
 		b.Draw()
 	} else if b.focus == "content" {
-		b.active_tab.keypress(rune(char))
+		b.ActiveTab.keypress(rune(char))
 		b.raster_tab()
 		b.Draw()
 	}
@@ -198,7 +198,7 @@ func (b *Browser) HandleEnter() {
 
 func (b *Browser) raster_tab() {
 	start := time.Now()
-	tab_height := math.Ceil(b.active_tab.document.Height + 2*layout.VSTEP)
+	tab_height := math.Ceil(b.ActiveTab.document.Height + 2*layout.VSTEP)
 
 	if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
 		b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
@@ -207,7 +207,7 @@ func (b *Browser) raster_tab() {
 	canvas := b.tab_surface
 	canvas.SetColor(color.White)
 	canvas.Clear()
-	b.active_tab.Raster(canvas)
+	b.ActiveTab.Raster(canvas)
 	fmt.Println("Tab raster took:", time.Since(start))
 }
 

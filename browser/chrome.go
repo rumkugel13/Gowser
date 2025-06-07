@@ -84,7 +84,7 @@ func (c *Chrome) paint() []layout.Command {
 		cmds = append(cmds, layout.NewDrawLine(bounds.Left, 0, bounds.Left, bounds.Bottom, "black", 1))
 		cmds = append(cmds, layout.NewDrawLine(bounds.Right, 0, bounds.Right, bounds.Bottom, "black", 1))
 		cmds = append(cmds, layout.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, "black"))
-		if tab == c.browser.active_tab {
+		if tab == c.browser.ActiveTab {
 			cmds = append(cmds, layout.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, "black", 1))
 			cmds = append(cmds, layout.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, "black", 1))
 		}
@@ -113,7 +113,7 @@ func (c *Chrome) paint() []layout.Command {
 			"red", 1,
 		))
 	} else {
-		url := c.browser.active_tab.url.String()
+		url := c.browser.ActiveTab.url.String()
 		cmds = append(cmds, layout.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
@@ -129,7 +129,7 @@ func (c *Chrome) click(x, y float64) {
 	if c.newtab_rect.ContainsPoint(x, y) {
 		c.browser.NewTab(url.NewURL("https://browser.engineering/"))
 	} else if c.back_rect.ContainsPoint(x, y) {
-		c.browser.active_tab.go_back()
+		c.browser.ActiveTab.go_back()
 		c.browser.raster_chrome()
 		c.browser.raster_tab()
 		c.browser.Draw()
@@ -139,7 +139,7 @@ func (c *Chrome) click(x, y float64) {
 	} else {
 		for i, tab := range c.browser.tabs {
 			if c.tab_rect(i).ContainsPoint(x, y) {
-				c.browser.active_tab = tab
+				c.browser.ActiveTab = tab
 			}
 		}
 		c.browser.raster_tab()
@@ -156,7 +156,7 @@ func (c *Chrome) keypress(char rune) bool {
 
 func (c *Chrome) enter() {
 	if c.focus == "address bar" {
-		c.browser.active_tab.Load(url.NewURL(c.address_bar), "")
+		c.browser.ActiveTab.Load(url.NewURL(c.address_bar), "")
 		c.focus = ""
 	}
 }

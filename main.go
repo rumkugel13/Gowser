@@ -51,6 +51,7 @@ func mainloop(browser *browser.Browser) {
 				browser.HandleKey(e)
 			}
 		}
+		browser.ActiveTab.TaskRunner.Run()
 
 		sdl.Delay(1)
 	}

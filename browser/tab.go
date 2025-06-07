@@ -5,6 +5,7 @@ import (
 	"gowser/css"
 	"gowser/html"
 	"gowser/layout"
+	"gowser/task"
 	"gowser/try"
 	u "gowser/url"
 	urllib "net/url"
@@ -34,14 +35,17 @@ type Tab struct {
 	focus           *html.Node
 	js              *JSContext
 	allowed_origins []string
+	TaskRunner      *TaskRunner
 }
 
 func NewTab(tab_height float64) *Tab {
-	return &Tab{
+	tab := &Tab{
 		scroll:     0,
 		tab_height: tab_height,
 		history:    make([]*u.URL, 0),
 	}
+	tab.TaskRunner = NewTaskRunner(tab)
+	return tab
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
@@ -86,10 +90,15 @@ func (t *Tab) Load(url *u.URL, payload string) {
 		if err != nil {
 			fmt.Println("Error loading script:", err)
 		} else {
-			t.js.Run(script, code)
+			task := task.NewTask(func(i ...interface{}) {
+				start := time.Now()
+				t.js.Run(script, code)
+				fmt.Println("Eval took:", time.Since(start))
+			}, script, code)
+			t.TaskRunner.ScheduleTask(task)
 		}
 	}
-	fmt.Println("Eval took:", time.Since(start))
+	fmt.Println("Loading scripts took:", time.Since(start))
 
 	start = time.Now()
 	t.rules = slices.Clone(DEFAULT_STYLE_SHEET)
