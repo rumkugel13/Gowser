@@ -158,3 +158,20 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Referer
 
 11. Adding Visual Effects
+    - [x] Browser compositing with extra surfaces for faster scrolling
+    - [x] Partial transparency via an alpha channel
+    - [x] User-configurable blending modes via mix-blend-mode
+    - [ ] Rounded rectangle clipping via destination-in blending or direct clipping
+    - [x] Optimizations to avoid surfaces when possible
+    - [ ] Exercises
+      - [ ] Filters
+      - [ ] Hit testing
+      - [ ] Interest Region
+      - [ ] Overflow scrolling
+      - [ ] Touch input
+
+12. Scheduling Tasks and Threads
+13. Animating and Compositing
+14. Making Content Accessible
+15. Supporting Embedded Content
+16. Reusing Previous Computation
