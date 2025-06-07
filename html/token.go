@@ -1,6 +1,7 @@
 package html
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -36,5 +37,5 @@ func NewElementToken(tag string, attributes map[string]string) ElementToken {
 }
 
 func (e ElementToken) String() string {
-	return "<" + e.Tag + ">"
+	return fmt.Sprintf("<" + e.Tag + " %v>", e.Attributes)
 }
