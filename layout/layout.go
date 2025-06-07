@@ -342,7 +342,7 @@ func (l *LineLayout) Layout() {
 }
 
 func (l *LineLayout) String() string {
-	return fmt.Sprintf("LineLayout(x=%f, y=%f, width=%f, height=%f)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height)
+	return fmt.Sprintf("LineLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
 func (l *LineLayout) Paint() []Command {
@@ -405,7 +405,7 @@ func (l *TextLayout) Layout() {
 }
 
 func (l *TextLayout) String() string {
-	return fmt.Sprintf("TextLayout(x=%f, y=%f, width=%f, height=%f, word='%s')", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.word)
+	return fmt.Sprintf("TextLayout(x=%f, y=%f, width=%f, height=%f, word='%s', style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.word, l.wrap.Node.Style)
 }
 
 func (l *TextLayout) Paint() []Command {
@@ -467,7 +467,7 @@ func (l *InputLayout) Layout() {
 }
 
 func (l *InputLayout) String() string {
-	return fmt.Sprintf("InputLayout(x=%f, y=%f, width=%f, height=%f)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height)
+	return fmt.Sprintf("InputLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
 func (l *InputLayout) Paint() []Command {
