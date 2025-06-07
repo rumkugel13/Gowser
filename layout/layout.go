@@ -568,5 +568,24 @@ func paint_visual_effects(node *html.Node, cmds []Command, rect *Rect) []Command
 	if val, ok := node.Style["mix-blend-mode"]; ok {
 		blend_mode = val
 	}
-	return []Command{NewDrawBlend(blend_mode, []Command{NewDrawOpacity(opacity, cmds)})}
+
+	overflow := "visible"
+	if val, ok := node.Style["overflow"]; ok {
+		overflow = val
+	}
+	if overflow == "clip" {
+		border_radius := "0px"
+		if val, ok := node.Style["border-radius"]; ok {
+			border_radius = val
+		}
+		if blend_mode == "" {
+			blend_mode = "source-over"
+		}
+		fVal, err := strconv.ParseFloat(strings.TrimSuffix(border_radius, "px"), 32)
+		if err == nil {
+			cmds = append(cmds, NewDrawBlend(1.0, "destination-in", []Command{NewDrawRRect(rect, fVal, "white")}))
+		}
+	}
+
+	return []Command{NewDrawBlend(opacity, blend_mode, cmds)}
 }

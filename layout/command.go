@@ -6,7 +6,6 @@ import (
 	"image"
 	"image/color"
 	"strings"
-	"sync"
 
 	"github.com/fogleman/gg"
 	"golang.org/x/image/font"
@@ -91,7 +90,7 @@ func (d *DrawRRect) Bottom() float64 {
 }
 
 func (d *DrawRRect) String() string {
-	return fmt.Sprint("DrawRect(rect=", d.rect, ", radius=", d.radius, ", color='", d.color, "')")
+	return fmt.Sprint("DrawRRect(rect=", d.rect, ", radius=", d.radius, ", color='", d.color, "')")
 }
 
 type DrawOutline struct {
@@ -168,101 +167,13 @@ func (d *DrawLine) String() string {
 	return fmt.Sprint("DrawLine(rect=", d.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
 }
 
-type DrawOpacity struct {
-	opacity  float64
-	rect     *Rect
-	children []Command
-}
-
-func NewDrawOpacity(opacity float64, children []Command) *DrawOpacity {
-	var rect Rect
-	for _, child := range children {
-		rect = rect.Union(child.Rect())
-	}
-	return &DrawOpacity{
-		opacity:  opacity,
-		rect:     &rect,
-		children: children,
-	}
-}
-
-func (d *DrawOpacity) Execute(canvas *gg.Context) {
-	if d.opacity == 1.0 {
-		for _, cmd := range d.children {
-			cmd.Execute(canvas)
-		}
-		return
-	}
-
-	// Create a new context for the layer
-	layerContext := gg.NewContext(canvas.Width(), canvas.Height())
-
-	// Execute each child command on the layer context
-	for _, cmd := range d.children {
-		cmd.Execute(layerContext)
-	}
-
-	// Get the image from the layer context
-	layerImage := layerContext.Image().(*image.RGBA)
-	bounds := layerImage.Bounds()
-	imgWithOpacity := image.NewRGBA(bounds)
-
-	var wg sync.WaitGroup
-	rowChan := make(chan int, bounds.Dy())
-
-	// Start worker goroutines
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for y := range rowChan {
-				for x := bounds.Min.X; x < bounds.Max.X; x++ {
-					origColor := layerImage.RGBAAt(x, y)
-					r, g, b, a := origColor.RGBA()
-					imgWithOpacity.SetRGBA(x, y, color.RGBA{
-						R: uint8(r >> 8),
-						G: uint8(g >> 8),
-						B: uint8(b >> 8),
-						A: uint8(float64(a>>8) * d.opacity),
-					})
-				}
-			}
-		}()
-	}
-
-	// Send rows to the worker goroutines
-	for y := int(d.rect.Top); y < int(d.rect.Bottom); y++ {
-		rowChan <- y
-	}
-	close(rowChan)
-	wg.Wait()
-
-	// Draw the image with opacity onto the main canvas
-	canvas.DrawImage(imgWithOpacity, 0, 0)
-}
-
-func (d *DrawOpacity) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawOpacity) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawOpacity) Bottom() float64 {
-	return d.rect.Bottom
-}
-
-func (d *DrawOpacity) String() string {
-	return fmt.Sprint("DrawOpacity(rect=", d.rect, ", opacity='", d.opacity, "')")
-}
-
 type BlendMode uint
 
 const (
 	BlendModeSourceOver BlendMode = iota
 	BlendModeDifference
 	BlendModeMultiply
+	BlendModeDestinationIn
 )
 
 func parse_blend_mode(blend_mode string) BlendMode {
@@ -270,31 +181,39 @@ func parse_blend_mode(blend_mode string) BlendMode {
 		return BlendModeMultiply
 	} else if blend_mode == "difference" {
 		return BlendModeDifference
+	} else if blend_mode == "destination-in" {
+		return BlendModeDestinationIn
+	} else if blend_mode == "source-over" {
+		return BlendModeSourceOver
 	} else {
 		return BlendModeSourceOver
 	}
 }
 
 type DrawBlend struct {
-	blend_mode string
-	children   []Command
-	rect       *Rect
+	opacity     float64
+	blend_mode  string
+	should_save bool
+	children    []Command
+	rect        *Rect
 }
 
-func NewDrawBlend(blend_mode string, children []Command) *DrawBlend {
+func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawBlend {
 	var rect Rect
 	for _, child := range children {
 		rect = rect.Union(child.Rect())
 	}
 	return &DrawBlend{
-		blend_mode: blend_mode,
-		children:   children,
-		rect:       &rect,
+		opacity:     opacity,
+		blend_mode:  blend_mode,
+		should_save: blend_mode != "" || opacity < 1.0,
+		children:    children,
+		rect:        &rect,
 	}
 }
 
 func (d *DrawBlend) Execute(canvas *gg.Context) {
-	if parse_blend_mode(d.blend_mode) == BlendModeSourceOver {
+	if !d.should_save || parse_blend_mode(d.blend_mode) == BlendModeSourceOver  {
 		for _, cmd := range d.children {
 			cmd.Execute(canvas)
 		}
@@ -324,7 +243,7 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 				r := uint8(abs(int(srcColor.R) - int(destColor.R)))
 				g := uint8(abs(int(srcColor.G) - int(destColor.G)))
 				b := uint8(abs(int(srcColor.B) - int(destColor.B)))
-				a := uint8(srcColor.A)
+				a := uint8(float64(srcColor.A) * d.opacity)
 
 				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
 			} else if parse_blend_mode(d.blend_mode) == BlendModeMultiply {
@@ -332,9 +251,27 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 				r := uint8(float64(srcColor.R) / 255 * float64(destColor.R) / 255 * 255.0)
 				g := uint8(float64(srcColor.G) / 255 * float64(destColor.G) / 255 * 255.0)
 				b := uint8(float64(srcColor.B) / 255 * float64(destColor.B) / 255 * 255.0)
-				a := uint8(srcColor.A)
+				a := uint8(float64(srcColor.A) * d.opacity)
 
 				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+			} else if parse_blend_mode(d.blend_mode) == BlendModeDestinationIn {
+				// Destination-In blending: Keep the destination where it overlaps with the source
+				// The alpha of the result is the alpha of the destination multiplied by the alpha of the source
+				sourceAlpha := float64(srcColor.A) / 255.0 // * d.opacity
+				destAlpha := float64(destColor.A) / 255.0
+
+				alpha := uint8((sourceAlpha * destAlpha) * 255.0)
+				if alpha > 0 {
+					result.SetRGBA(x, y, color.RGBA{
+						R: destColor.R,
+						G: destColor.G,
+						B: destColor.B,
+						A: alpha,
+					})
+				} else {
+					// If alpha is zero, set the pixel to fully transparent
+					result.SetRGBA(x, y, color.RGBA{A: 0})
+				}
 			}
 		}
 	}
@@ -363,15 +300,13 @@ func (d *DrawBlend) Bottom() float64 {
 }
 
 func (d *DrawBlend) String() string {
-	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "')")
+	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ")")
 }
 
 func PrintCommands(list []Command, indent int) {
 	for _, cmd := range list {
 		fmt.Println(strings.Repeat(" ", indent) + cmd.String())
-		if op, ok := cmd.(*DrawOpacity); ok {
-			PrintCommands(op.children, indent+2)
-		} else if bl, ok := cmd.(*DrawBlend); ok {
+		if bl, ok := cmd.(*DrawBlend); ok {
 			PrintCommands(bl.children, indent+2)
 		}
 	}
