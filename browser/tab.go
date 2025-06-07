@@ -45,6 +45,7 @@ func NewTab(tab_height float64) *Tab {
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
+	t.scroll = 0
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
 	headers, body := url.Request(t.url, payload)

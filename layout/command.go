@@ -29,7 +29,7 @@ type DrawText struct {
 
 func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
 	return &DrawText{
-		rect:  NewRect(x1, y1, x1+Measure(font, text), y1-Linespace(font)),
+		rect:  NewRect(x1, y1, x1+Measure(font, text), y1-Ascent(font)+Descent(font)),
 		text:  text,
 		font:  font,
 		color: color,
@@ -91,7 +91,7 @@ func (d *DrawRRect) Bottom() float64 {
 }
 
 func (d *DrawRRect) String() string {
-	return fmt.Sprint("DrawRect(rect=", d.rect, ", color='", d.color, "')")
+	return fmt.Sprint("DrawRect(rect=", d.rect, ", radius=", d.radius, ", color='", d.color, "')")
 }
 
 type DrawOutline struct {
@@ -371,6 +371,8 @@ func PrintCommands(list []Command, indent int) {
 		fmt.Println(strings.Repeat(" ", indent) + cmd.String())
 		if op, ok := cmd.(*DrawOpacity); ok {
 			PrintCommands(op.children, indent+2)
+		} else if bl, ok := cmd.(*DrawBlend); ok {
+			PrintCommands(bl.children, indent+2)
 		}
 	}
 }
