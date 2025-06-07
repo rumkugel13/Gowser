@@ -15,6 +15,23 @@ func NewRect(left, top, right, bottom float64) *Rect {
 	}
 }
 
+func (r Rect) Union(other Rect) Rect {
+    return Rect{
+        Left:   min(r.Left, other.Left),
+        Top:    min(r.Top, other.Top),
+        Right:  max(r.Right, other.Right),
+        Bottom: max(r.Bottom, other.Bottom),
+    }
+}
+
+func (r *Rect) Width() float64 {
+	return r.Right - r.Left
+}
+
+func (r *Rect) Height() float64 {
+	return r.Bottom - r.Top
+}
+
 func (r *Rect) ContainsPoint(x, y float64) bool {
 	return x >= r.Left && x < r.Right &&
 		y >= r.Top && y < r.Bottom

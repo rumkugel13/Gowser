@@ -65,7 +65,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 
 	start = time.Now()
 	t.Nodes = html.NewHTMLParser(body).Parse()
-	// t.nodes.PrintTree(0)
+	// t.Nodes.PrintTree(0)
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
@@ -115,7 +115,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 }
 
 func (t *Tab) Raster(canvas *gg.Context) {
-	// layout.PrintCommands(t.display_list)
+	// layout.PrintCommands(t.display_list, 0)
 	for _, cmd := range t.display_list {
 		cmd.Execute(canvas)
 	}
@@ -237,7 +237,7 @@ func (t *Tab) render() {
 	start = time.Now()
 	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
 	t.document.Layout.Layout()
-	// layout.PrintTree(b.document, 0)
+	// layout.PrintTree(t.document, 0)
 	t.display_list = make([]layout.Command, 0)
 	layout.PaintTree(t.document, &t.display_list)
 	// layout.PrintCommands(b.display_list)

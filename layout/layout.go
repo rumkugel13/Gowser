@@ -32,6 +32,7 @@ type Layout interface {
 	Paint() []Command
 	Wrap(*LayoutNode)
 	ShouldPaint() bool
+	PaintEffects([]Command) []Command
 }
 
 type DocumentLayout struct {
@@ -59,6 +60,10 @@ func (d *DocumentLayout) String() string {
 
 func (d *DocumentLayout) Paint() []Command {
 	return []Command{}
+}
+
+func (d *DocumentLayout) PaintEffects(cmds []Command) []Command {
+	return cmds
 }
 
 func (d *DocumentLayout) ShouldPaint() bool {
@@ -141,6 +146,11 @@ func (l *BlockLayout) Paint() []Command {
 		rect := NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
+	return cmds
+}
+
+func (d *BlockLayout) PaintEffects(cmds []Command) []Command {
+	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
 	return cmds
 }
 
@@ -259,30 +269,6 @@ func (l *BlockLayout) self_rect() *Rect {
 	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
-func PaintTree(l *LayoutNode, displayList *[]Command) {
-	if l.Layout.ShouldPaint() {
-		*displayList = append(*displayList, l.Layout.Paint()...)
-	}
-	for _, child := range l.children {
-		PaintTree(child, displayList)
-	}
-}
-
-func PrintTree(l *LayoutNode, indent int) {
-	fmt.Println(strings.Repeat(" ", indent) + l.Layout.String())
-	for _, child := range l.children {
-		PrintTree(child, indent+2)
-	}
-}
-
-func TreeToList(tree *LayoutNode) []*LayoutNode {
-	list := []*LayoutNode{tree}
-	for _, child := range tree.children {
-		list = append(list, TreeToList(child)...)
-	}
-	return list
-}
-
 type LineLayout struct {
 	wrap     *LayoutNode
 	previous *LayoutNode
@@ -349,6 +335,10 @@ func (l *LineLayout) Paint() []Command {
 	return []Command{}
 }
 
+func (d *LineLayout) PaintEffects(cmds []Command) []Command {
+	return cmds
+}
+
 func (d *LineLayout) ShouldPaint() bool {
 	return true
 }
@@ -411,6 +401,10 @@ func (l *TextLayout) String() string {
 func (l *TextLayout) Paint() []Command {
 	color := l.wrap.Node.Style["color"]
 	return []Command{NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
+}
+
+func (d *TextLayout) PaintEffects(cmds []Command) []Command {
+	return cmds
 }
 
 func (d *TextLayout) ShouldPaint() bool {
@@ -515,6 +509,11 @@ func (l *InputLayout) Paint() []Command {
 	return cmds
 }
 
+func (d *InputLayout) PaintEffects(cmds []Command) []Command {
+	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
+	return cmds
+}
+
 func (d *InputLayout) ShouldPaint() bool {
 	return true
 }
@@ -525,4 +524,45 @@ func (d *InputLayout) Wrap(wrap *LayoutNode) {
 
 func (l *InputLayout) self_rect() *Rect {
 	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+}
+
+func PaintTree(l *LayoutNode, displayList *[]Command) {
+	var cmds []Command
+	if l.Layout.ShouldPaint() {
+		cmds = l.Layout.Paint()
+	}
+	for _, child := range l.children {
+		PaintTree(child, &cmds)
+	}
+
+	if l.Layout.ShouldPaint() {
+		cmds = l.Layout.PaintEffects(cmds)
+	}
+	*displayList = append(*displayList, cmds...)
+}
+
+func PrintTree(l *LayoutNode, indent int) {
+	fmt.Println(strings.Repeat(" ", indent) + l.Layout.String())
+	for _, child := range l.children {
+		PrintTree(child, indent+2)
+	}
+}
+
+func TreeToList(tree *LayoutNode) []*LayoutNode {
+	list := []*LayoutNode{tree}
+	for _, child := range tree.children {
+		list = append(list, TreeToList(child)...)
+	}
+	return list
+}
+
+func paint_visual_effects(node *html.Node, cmds []Command, rect *Rect) []Command {
+	opacity := 1.0
+	if val, ok := node.Style["opacity"]; ok {
+		fval, err := strconv.ParseFloat(val, 32)
+		if err == nil {
+			opacity = fval
+		}
+	}
+	return []Command{NewOpacity(opacity, cmds)}
 }
