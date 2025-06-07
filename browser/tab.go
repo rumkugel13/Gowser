@@ -116,7 +116,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 }
 
 func (t *Tab) Raster(canvas *gg.Context) {
-	layout.PrintCommands(t.display_list, 0)
+	// layout.PrintCommands(t.display_list, 0)
 	for _, cmd := range t.display_list {
 		cmd.Execute(canvas)
 	}
