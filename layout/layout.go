@@ -564,5 +564,9 @@ func paint_visual_effects(node *html.Node, cmds []Command, rect *Rect) []Command
 			opacity = fval
 		}
 	}
-	return []Command{NewOpacity(opacity, cmds)}
+	var blend_mode string
+	if val, ok := node.Style["mix-blend-mode"]; ok {
+		blend_mode = val
+	}
+	return []Command{NewDrawBlend(blend_mode, []Command{NewDrawOpacity(opacity, cmds)})}
 }

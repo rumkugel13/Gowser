@@ -174,7 +174,7 @@ type DrawOpacity struct {
 	children []Command
 }
 
-func NewOpacity(opacity float64, children []Command) *DrawOpacity {
+func NewDrawOpacity(opacity float64, children []Command) *DrawOpacity {
 	var rect Rect
 	for _, child := range children {
 		rect = rect.Union(child.Rect())
@@ -231,7 +231,7 @@ func (d *DrawOpacity) Execute(canvas *gg.Context) {
 	}
 
 	// Send rows to the worker goroutines
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	for y := int(d.rect.Top); y < int(d.rect.Bottom); y++ {
 		rowChan <- y
 	}
 	close(rowChan)
@@ -255,6 +255,115 @@ func (d *DrawOpacity) Bottom() float64 {
 
 func (d *DrawOpacity) String() string {
 	return fmt.Sprint("DrawOpacity(rect=", d.rect, ", opacity='", d.opacity, "')")
+}
+
+type BlendMode uint
+
+const (
+	BlendModeSourceOver BlendMode = iota
+	BlendModeDifference
+	BlendModeMultiply
+)
+
+func parse_blend_mode(blend_mode string) BlendMode {
+	if blend_mode == "multiply" {
+		return BlendModeMultiply
+	} else if blend_mode == "difference" {
+		return BlendModeDifference
+	} else {
+		return BlendModeSourceOver
+	}
+}
+
+type DrawBlend struct {
+	blend_mode string
+	children   []Command
+	rect       *Rect
+}
+
+func NewDrawBlend(blend_mode string, children []Command) *DrawBlend {
+	var rect Rect
+	for _, child := range children {
+		rect = rect.Union(child.Rect())
+	}
+	return &DrawBlend{
+		blend_mode: blend_mode,
+		children:   children,
+		rect:       &rect,
+	}
+}
+
+func (d *DrawBlend) Execute(canvas *gg.Context) {
+	if parse_blend_mode(d.blend_mode) == BlendModeSourceOver {
+		for _, cmd := range d.children {
+			cmd.Execute(canvas)
+		}
+		return
+	}
+
+	// Create a new context for the layer
+	layerContext := gg.NewContext(canvas.Width(), canvas.Height())
+
+	// Execute each child command on the layer context
+	for _, cmd := range d.children {
+		cmd.Execute(layerContext)
+	}
+
+	// Get the image from the layer context
+	src := layerContext.Image().(*image.RGBA)
+	bounds := src.Bounds()
+
+	result := image.NewRGBA(bounds)
+	for y := int(d.rect.Top); y < int(d.rect.Bottom); y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			srcColor := src.RGBAAt(x, y)
+			destColor := canvas.Image().(*image.RGBA).RGBAAt(x, y)
+
+			if parse_blend_mode(d.blend_mode) == BlendModeDifference {
+				// Difference blending
+				r := uint8(abs(int(srcColor.R) - int(destColor.R)))
+				g := uint8(abs(int(srcColor.G) - int(destColor.G)))
+				b := uint8(abs(int(srcColor.B) - int(destColor.B)))
+				a := uint8(srcColor.A)
+
+				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+			} else if parse_blend_mode(d.blend_mode) == BlendModeMultiply {
+				// Multiply blending
+				r := uint8(float64(srcColor.R) / 255 * float64(destColor.R) / 255 * 255.0)
+				g := uint8(float64(srcColor.G) / 255 * float64(destColor.G) / 255 * 255.0)
+				b := uint8(float64(srcColor.B) / 255 * float64(destColor.B) / 255 * 255.0)
+				a := uint8(srcColor.A)
+
+				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+			}
+		}
+	}
+
+	// Draw the image with opacity onto the main canvas
+	canvas.DrawImage(result, 0, 0)
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
+}
+
+func (d *DrawBlend) Rect() Rect {
+	return *d.rect
+}
+
+func (d *DrawBlend) Top() float64 {
+	return d.rect.Top
+}
+
+func (d *DrawBlend) Bottom() float64 {
+	return d.rect.Bottom
+}
+
+func (d *DrawBlend) String() string {
+	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "')")
 }
 
 func PrintCommands(list []Command, indent int) {
