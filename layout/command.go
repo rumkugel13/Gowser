@@ -213,7 +213,7 @@ func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawB
 }
 
 func (d *DrawBlend) Execute(canvas *gg.Context) {
-	if !d.should_save || parse_blend_mode(d.blend_mode) == BlendModeSourceOver  {
+	if !d.should_save {
 		for _, cmd := range d.children {
 			cmd.Execute(canvas)
 		}
@@ -231,12 +231,13 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	// Get the image from the layer context
 	src := layerContext.Image().(*image.RGBA)
 	bounds := src.Bounds()
+	dst := canvas.Image().(*image.RGBA)
 
 	result := image.NewRGBA(bounds)
 	for y := int(d.rect.Top); y < int(d.rect.Bottom); y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			srcColor := src.RGBAAt(x, y)
-			destColor := canvas.Image().(*image.RGBA).RGBAAt(x, y)
+			destColor := dst.RGBAAt(x, y)
 
 			if parse_blend_mode(d.blend_mode) == BlendModeDifference {
 				// Difference blending
@@ -257,7 +258,7 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 			} else if parse_blend_mode(d.blend_mode) == BlendModeDestinationIn {
 				// Destination-In blending: Keep the destination where it overlaps with the source
 				// The alpha of the result is the alpha of the destination multiplied by the alpha of the source
-				sourceAlpha := float64(srcColor.A) / 255.0 // * d.opacity
+				sourceAlpha := float64(srcColor.A) / 255.0 * d.opacity
 				destAlpha := float64(destColor.A) / 255.0
 
 				alpha := uint8((sourceAlpha * destAlpha) * 255.0)
@@ -272,6 +273,13 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 					// If alpha is zero, set the pixel to fully transparent
 					result.SetRGBA(x, y, color.RGBA{A: 0})
 				}
+			} else { // source-over and transparency
+				result.SetRGBA(x, y, color.RGBA{
+					R: srcColor.R,
+					G: srcColor.G,
+					B: srcColor.B,
+					A: uint8(float64(srcColor.A) * d.opacity),
+				})
 			}
 		}
 	}
