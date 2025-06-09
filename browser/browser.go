@@ -79,7 +79,7 @@ func (b *Browser) Draw() {
 	// fast:
 	{
 		srcRect := image.Rect(0, int(b.ActiveTab.scroll), WIDTH, b.tab_surface.Height())
-		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, b.tab_surface.Height())
+		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, max(b.root_surface.Height()-int(b.chrome.bottom), b.tab_surface.Height()))
 		draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
 
 		chromeRect := image.Rect(0, 0, WIDTH, int(b.chrome.bottom))
