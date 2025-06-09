@@ -28,7 +28,7 @@ type DrawText struct {
 
 func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
 	return &DrawText{
-		rect:  NewRect(x1, y1, x1+Measure(font, text), y1-Ascent(font)+Descent(font)),
+		rect:  NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font)),
 		text:  text,
 		font:  font,
 		color: color,
@@ -54,7 +54,7 @@ func (d *DrawText) Bottom() float64 {
 }
 
 func (d *DrawText) String() string {
-	return fmt.Sprint("DrawText(rect=", d.rect, ", text='", d.text, "')")
+	return fmt.Sprint("DrawText(rect=", d.rect, ", text='", d.text, "', color='", d.color, "')")
 }
 
 type DrawRRect struct {
@@ -308,7 +308,7 @@ func (d *DrawBlend) Bottom() float64 {
 }
 
 func (d *DrawBlend) String() string {
-	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ")")
+	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
 }
 
 func PrintCommands(list []Command, indent int) {
