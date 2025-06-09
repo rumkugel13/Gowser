@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"gowser/css"
 	"gowser/layout"
+	"gowser/task"
 	"gowser/url"
 	"image"
 	"image/color"
 	"image/draw"
-	"math"
 	"os"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -17,29 +18,47 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+const (
+	REFRESH_RATE_SEC = .033
+)
+
 var (
 	DEFAULT_STYLE_SHEET []css.Rule
 )
 
 type Browser struct {
-	tabs           []*Tab
-	ActiveTab      *Tab
-	sdl_window     *sdl.Window
-	root_surface   *gg.Context
-	chrome         *Chrome
-	focus          string
-	RED_MASK       uint32
-	GREEN_MASK     uint32
-	BLUE_MASK      uint32
-	ALPHA_MASK     uint32
-	chrome_surface *gg.Context
-	tab_surface    *gg.Context
+	tabs                    []*Tab
+	ActiveTab               *Tab
+	sdl_window              *sdl.Window
+	root_surface            *gg.Context
+	chrome                  *Chrome
+	focus                   string
+	RED_MASK                uint32
+	GREEN_MASK              uint32
+	BLUE_MASK               uint32
+	ALPHA_MASK              uint32
+	chrome_surface          *gg.Context
+	tab_surface             *gg.Context
+	animation_timer         *time.Timer
+	needs_raster_and_draw   bool
+	needs_animation_frame   bool
+	measure                 *MeasureTime
+	lock                    *sync.Mutex
+	active_tab_url          *url.URL
+	active_tab_scroll       float64
+	active_tab_height       float64
+	active_tab_display_list []layout.Command
 }
 
 func NewBrowser() *Browser {
+	// browser thread
 	browser := &Browser{
-		tabs:      make([]*Tab, 0),
-		ActiveTab: nil,
+		tabs:                  make([]*Tab, 0),
+		ActiveTab:             nil,
+		needs_raster_and_draw: false,
+		needs_animation_frame: false,
+		measure:               NewMeasureTime(),
+		lock:                  &sync.Mutex{},
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
@@ -136,69 +155,180 @@ func (b *Browser) Draw() {
 }
 
 func (b *Browser) NewTab(url *url.URL) {
-	new_tab := NewTab(HEIGHT - b.chrome.bottom)
-	new_tab.Load(url, "")
-	b.ActiveTab = new_tab
+	b.lock.Lock()
+	b.new_tab_internal(url)
+	b.lock.Unlock()
+}
+
+func (b *Browser) new_tab_internal(url *url.URL) {
+	new_tab := NewTab(b, HEIGHT-b.chrome.bottom)
 	b.tabs = append(b.tabs, new_tab)
-	b.raster_chrome()
-	b.raster_tab()
-	b.Draw()
+	b.set_active_tab(new_tab)
+	b.ScheduleLoad(url, "")
 }
 
 func (b *Browser) HandleQuit() {
+	b.measure.Finish()
+	for _, tab := range b.tabs {
+		tab.TaskRunner.SetNeedsQuit()
+	}
 	b.sdl_window.Destroy()
 }
 
 func (b *Browser) HandleDown() {
-	b.ActiveTab.scrollDown()
-	b.Draw()
+	b.lock.Lock()
+	if b.active_tab_height == 0 {
+		b.lock.Unlock()
+		return
+	}
+	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll + SCROLL_STEP)
+	b.SetNeedsRasterAndDraw()
+	b.needs_animation_frame = true
+	b.lock.Unlock()
+}
+
+func (b *Browser) clamp_scroll(scroll float64) float64 {
+	height := b.active_tab_height
+	max_scroll := height - (HEIGHT - b.chrome.bottom)
+	return max(0, min(scroll, max_scroll))
 }
 
 func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
+	b.lock.Lock()
 	if float64(e.Y) < b.chrome.bottom {
 		b.focus = ""
 		b.chrome.click(float64(e.X), float64(e.Y))
-		b.raster_chrome()
+		b.SetNeedsRasterAndDraw()
 	} else {
-		b.focus = "content"
-		b.chrome.blur()
-		url := b.ActiveTab.url
-		tab_y := float64(e.Y) - b.chrome.bottom
-		b.ActiveTab.click(float64(e.X), tab_y)
-		if b.ActiveTab.url != url {
-			b.raster_chrome()
+		if b.focus != "content" {
+			b.focus = "content"
+			b.chrome.focus = ""
+			b.SetNeedsRasterAndDraw()
 		}
-		b.raster_tab()
+		b.chrome.blur()
+		tab_y := float64(e.Y) - b.chrome.bottom
+		tab_x := float64(e.X)
+		task := task.NewTask(func(i ...interface{}) {
+			b.ActiveTab.click(tab_x, tab_y)
+		}, tab_x, tab_y)
+		b.ActiveTab.TaskRunner.ScheduleTask(task)
 	}
-
-	b.Draw()
+	b.lock.Unlock()
 }
 
 func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
+	b.lock.Lock()
 	char := e.GetText()[0]
 	if !(0x20 <= char && char < 0x7f) {
 		return
 	}
 	if b.chrome.keypress(rune(char)) {
-		b.raster_chrome()
-		b.Draw()
+		b.SetNeedsRasterAndDraw()
 	} else if b.focus == "content" {
-		b.ActiveTab.keypress(rune(char))
-		b.raster_tab()
-		b.Draw()
+		task := task.NewTask(func(i ...interface{}) {
+			b.ActiveTab.keypress(rune(char))
+		}, rune(char))
+		b.ActiveTab.TaskRunner.ScheduleTask(task)
 	}
+	b.lock.Unlock()
 }
 
 func (b *Browser) HandleEnter() {
-	b.chrome.enter()
+	b.lock.Lock()
+	if b.chrome.enter() {
+		b.SetNeedsRasterAndDraw()
+	}
+	b.lock.Unlock()
+}
+
+func (b *Browser) Commit(tab *Tab, data *CommitData) {
+	b.lock.Lock()
+	if tab == b.ActiveTab {
+		b.active_tab_url = data.url
+		if data.scroll != nil {
+			b.active_tab_scroll = *data.scroll
+		}
+		b.active_tab_height = data.height
+		if len(data.display_list) > 0 {
+			b.active_tab_display_list = data.display_list
+		}
+		b.animation_timer = nil
+		b.SetNeedsRasterAndDraw()
+	}
+	b.lock.Unlock()
+}
+
+func (b *Browser) RasterAndDraw() {
+	b.lock.Lock()
+	if !b.needs_raster_and_draw {
+		b.lock.Unlock()
+		return
+	}
+	b.measure.Time("raster_and_draw")
+
 	b.raster_chrome()
 	b.raster_tab()
 	b.Draw()
+
+	b.measure.Stop("raster_and_draw")
+	b.needs_raster_and_draw = false
+	b.lock.Unlock()
+}
+
+func (b *Browser) ScheduleAnimationFrame() {
+	callback := func() {
+		b.lock.Lock()
+		scroll := b.active_tab_scroll
+		b.needs_animation_frame = false
+		task := task.NewTask(func(i ...interface{}) {
+			b.ActiveTab.run_animation_frame(&scroll)
+		}, scroll)
+		b.ActiveTab.TaskRunner.ScheduleTask(task)
+		b.lock.Unlock()
+	}
+	b.lock.Lock()
+	if b.needs_animation_frame && b.animation_timer == nil {
+		ms := int(REFRESH_RATE_SEC * 1000)
+		duration := time.Duration(ms)
+		b.animation_timer = time.AfterFunc(duration, callback)
+	}
+	b.lock.Unlock()
+}
+
+func (b *Browser) SetNeedsRasterAndDraw() {
+	b.needs_raster_and_draw = true
+}
+
+func (b *Browser) SetNeedsAnimationFrame(tab *Tab) {
+	b.lock.Lock()
+	if tab == b.ActiveTab {
+		b.needs_animation_frame = true
+	}
+	b.lock.Unlock()
+}
+
+func (b *Browser) ScheduleLoad(url *url.URL, body string) {
+	b.ActiveTab.TaskRunner.ClearPendingTasks()
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.Load(url, body)
+	}, url, body)
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+}
+
+func (b *Browser) set_active_tab(new_tab *Tab) {
+	b.ActiveTab = new_tab
+	b.active_tab_scroll = 0
+	b.active_tab_url = nil
+	b.needs_animation_frame = true
+	b.animation_timer = nil
 }
 
 func (b *Browser) raster_tab() {
+	if b.active_tab_height == 0 {
+		return
+	}
 	start := time.Now()
-	tab_height := math.Ceil(b.ActiveTab.document.Height + 2*layout.VSTEP)
+	tab_height := b.active_tab_height
 
 	if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
 		b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
@@ -207,7 +337,10 @@ func (b *Browser) raster_tab() {
 	canvas := b.tab_surface
 	canvas.SetColor(color.White)
 	canvas.Clear()
-	b.ActiveTab.Raster(canvas)
+	// layout.PrintCommands(b.active_tab_display_list, 0)
+	for _, cmd := range b.active_tab_display_list {
+		cmd.Execute(canvas)
+	}
 	fmt.Println("Tab raster took:", time.Since(start))
 }
 

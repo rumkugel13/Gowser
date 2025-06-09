@@ -8,13 +8,12 @@ import (
 	"gowser/task"
 	"gowser/try"
 	u "gowser/url"
+	"math"
 	urllib "net/url"
 	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/fogleman/gg"
 )
 
 const (
@@ -24,32 +23,41 @@ const (
 )
 
 type Tab struct {
-	display_list    []layout.Command
-	scroll          float64
-	document        *layout.LayoutNode
-	url             *u.URL
-	tab_height      float64
-	history         []*u.URL
-	Nodes           *html.Node
-	rules           []css.Rule
-	focus           *html.Node
-	js              *JSContext
-	allowed_origins []string
-	TaskRunner      *TaskRunner
+	display_list          []layout.Command
+	scroll                float64
+	document              *layout.LayoutNode
+	url                   *u.URL
+	tab_height            float64
+	history               []*u.URL
+	Nodes                 *html.Node
+	rules                 []css.Rule
+	focus                 *html.Node
+	js                    *JSContext
+	allowed_origins       []string
+	TaskRunner            *TaskRunner
+	needs_render          bool
+	browser               *Browser
+	scroll_changed_in_tab bool
 }
 
-func NewTab(tab_height float64) *Tab {
+func NewTab(browser *Browser, tab_height float64) *Tab {
 	tab := &Tab{
-		scroll:     0,
-		tab_height: tab_height,
-		history:    make([]*u.URL, 0),
+		scroll:                0,
+		tab_height:            tab_height,
+		history:               make([]*u.URL, 0),
+		needs_render:          false,
+		browser:               browser,
+		scroll_changed_in_tab: false,
 	}
 	tab.TaskRunner = NewTaskRunner(tab)
+	tab.TaskRunner.StartThread()
 	return tab
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
 	t.scroll = 0
+	t.scroll_changed_in_tab = true
+	t.TaskRunner.ClearPendingTasks()
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
 	headers, body := url.Request(t.url, payload)
@@ -74,6 +82,9 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
+	if t.js != nil {
+		t.js.Discarded = true
+	}
 	t.js = NewJSContext(t)
 	scripts := t.scripts(t.Nodes)
 	for _, script := range scripts {
@@ -92,8 +103,10 @@ func (t *Tab) Load(url *u.URL, payload string) {
 		} else {
 			task := task.NewTask(func(i ...interface{}) {
 				start := time.Now()
+				t.browser.measure.Time("eval_" + script)
 				t.js.Run(script, code)
-				fmt.Println("Eval took:", time.Since(start))
+				t.browser.measure.Stop("eval_" + script)
+				fmt.Println("Eval " + script + " took:", time.Since(start))
 			}, script, code)
 			t.TaskRunner.ScheduleTask(task)
 		}
@@ -121,14 +134,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 		}
 	}
 	fmt.Println("Loading stylesheets took:", time.Since(start))
-	t.render()
-}
-
-func (t *Tab) Raster(canvas *gg.Context) {
-	// layout.PrintCommands(t.display_list, 0)
-	for _, cmd := range t.display_list {
-		cmd.Execute(canvas)
-	}
+	t.SetNeedsRender()
 }
 
 func (t *Tab) scripts(nodes *html.Node) []string {
@@ -159,12 +165,8 @@ func (t *Tab) links(nodes *html.Node) []string {
 	return links
 }
 
-func (t *Tab) scrollDown() {
-	max_y := max(t.document.Height+2*layout.VSTEP-t.tab_height, 0)
-	t.scroll = min(t.scroll+SCROLL_STEP, max_y)
-}
-
 func (t *Tab) click(x, y float64) {
+	t.Render()
 	if t.focus != nil {
 		tok := t.focus.Token.(html.ElementToken)
 		tok.IsFocused = false
@@ -208,7 +210,7 @@ func (t *Tab) click(x, y float64) {
 			tok.IsFocused = true
 			elt.Token = tok
 
-			t.render()
+			t.SetNeedsRender()
 			return
 		} else if element.Tag == "button" {
 			if t.js.DispatchEvent("click", elt) {
@@ -224,7 +226,6 @@ func (t *Tab) click(x, y float64) {
 		}
 		elt = elt.Parent
 	}
-	t.render()
 }
 
 func (t *Tab) go_back() {
@@ -236,7 +237,12 @@ func (t *Tab) go_back() {
 	}
 }
 
-func (t *Tab) render() {
+func (t *Tab) Render() {
+	if !t.needs_render {
+		return
+	}
+	t.browser.measure.Time("render")
+
 	start := time.Now()
 	sort.SliceStable(t.rules, func(i, j int) bool {
 		return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
@@ -252,6 +258,49 @@ func (t *Tab) render() {
 	layout.PaintTree(t.document, &t.display_list)
 	// layout.PrintCommands(b.display_list)
 	fmt.Println("Layout took:", time.Since(start))
+
+	t.needs_render = false
+
+	clamped_scroll := t.clamp_scroll(t.scroll)
+	if clamped_scroll != t.scroll {
+		t.scroll_changed_in_tab = true
+	}
+	t.scroll = clamped_scroll
+
+	t.browser.measure.Stop("render")
+}
+
+func (t *Tab) clamp_scroll(scroll float64) float64 {
+	height := math.Ceil(t.document.Height + 2*layout.VSTEP)
+	maxscroll := height - t.tab_height
+	return max(0, min(scroll, maxscroll))
+}
+
+func (t *Tab) run_animation_frame(scroll *float64) {
+	if !t.scroll_changed_in_tab {
+		t.scroll = *scroll
+	}
+	t.browser.measure.Time("eval_run_raf_handlers")
+	t.js.ctx.PevalString("__runRAFHandlers()")
+	t.browser.measure.Stop("eval_run_raf_handlers")
+
+	t.Render()
+
+	scroll = nil
+	if t.scroll_changed_in_tab {
+		scroll = &t.scroll
+	}
+
+	document_height := math.Ceil(t.document.Height + 2*layout.VSTEP)
+	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list)
+	t.display_list = make([]layout.Command, 0)
+	t.browser.Commit(t, commit_data)
+	t.scroll_changed_in_tab = false
+}
+
+func (t *Tab) SetNeedsRender() {
+	t.needs_render = true
+	t.browser.SetNeedsAnimationFrame(t)
 }
 
 func (t *Tab) keypress(char rune) {
@@ -260,7 +309,7 @@ func (t *Tab) keypress(char rune) {
 			return
 		}
 		t.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
-		t.render()
+		t.SetNeedsRender()
 	}
 }
 

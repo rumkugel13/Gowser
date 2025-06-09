@@ -124,6 +124,12 @@ func do_request(session map[string]string, method, url string, headers map[strin
 			fmt.Println("Error reading comment.js")
 		}
 		return "200 OK", string(data)
+	} else if method == "GET" && url == "/eventloop.js" {
+		data, err := os.ReadFile("eventloop.js")
+		if err != nil {
+			fmt.Println("Error reading eventloop.js")
+		}
+		return "200 OK", string(data)
 	} else if method == "GET" && url == "/comment.css" {
 		data, err := os.ReadFile("comment.css")
 		if err != nil {
@@ -139,6 +145,8 @@ func do_request(session map[string]string, method, url string, headers map[strin
 	} else if method == "POST" && url == "/" {
 		params := form_decode(body)
 		return do_login(session, params)
+	} else if method == "GET" && url == "/count" {
+		return "200 OK", show_count()
 	} else {
 		return "404 Not Found", not_found(url, method)
 	}
@@ -222,6 +230,16 @@ func do_login(session map[string]string, params map[string]string) (string, stri
 		out += fmt.Sprintf("<h1>Invalid password for %s</h1>", username)
 		return "401 Unauthorized", out
 	}
+}
+
+func show_count() string {
+	out := "<!doctype html>"
+	out += "<div>"
+	out += "  Let's count up to 99!"
+	out += "</div>"
+	out += "<div>Output</div>"
+	out += "<script src=/eventloop.js></script>"
+	return out
 }
 
 func not_found(url, method string) string {

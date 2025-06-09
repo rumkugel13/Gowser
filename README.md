@@ -163,7 +163,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] User-configurable blending modes via mix-blend-mode
     - [ ] Rounded rectangle clipping via destination-in blending or direct clipping
     - [x] Optimizations to avoid surfaces when possible
-    - [ ] Exercises
+    - [ ] Exercises (optional)
       - [ ] Filters
       - [ ] Hit testing
       - [ ] Interest Region
@@ -171,6 +171,22 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Touch input
 
 12. Scheduling Tasks and Threads
+    - [x] Task queues with tasks for js, user input and rendering
+    - [x] Trying to consistently generate frames at fixed interval, i.e. 30hz
+    - [x] Two threads involved in rendering
+    - [x] Main thread runs javascript and special rendering
+    - [x] Browser thread draws display list to screen, handles input events and scrolling
+    - [x] Main thread synchronizes with browser thread through commit
+    - [ ] Exercises (optional)
+      - [ ] setInterval
+      - [ ] Task timing
+      - [ ] Clock-based frame timing
+      - [ ] Scheduling
+      - [ ] Threaded loading
+      - [ ] Networking thread
+      - [ ] Optimized scheduling
+      - [ ] Raster-and-draw thread
+
 13. Animating and Compositing
 14. Making Content Accessible
 15. Supporting Embedded Content

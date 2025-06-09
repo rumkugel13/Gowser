@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"gowser/layout"
+	"gowser/task"
 	"gowser/url"
 
 	"golang.org/x/image/font"
@@ -113,7 +114,10 @@ func (c *Chrome) paint() []layout.Command {
 			"red", 1,
 		))
 	} else {
-		url := c.browser.ActiveTab.url.String()
+		var url string
+		if c.browser.active_tab_url != nil {
+			url = c.browser.active_tab_url.String()
+		}
 		cmds = append(cmds, layout.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
@@ -127,22 +131,27 @@ func (c *Chrome) paint() []layout.Command {
 func (c *Chrome) click(x, y float64) {
 	c.focus = ""
 	if c.newtab_rect.ContainsPoint(x, y) {
-		c.browser.NewTab(url.NewURL("https://browser.engineering/"))
+		c.browser.new_tab_internal(url.NewURL("https://browser.engineering/"))
 	} else if c.back_rect.ContainsPoint(x, y) {
-		c.browser.ActiveTab.go_back()
-		c.browser.raster_chrome()
-		c.browser.raster_tab()
-		c.browser.Draw()
+		task := task.NewTask(func(i ...interface{}) {
+			c.browser.ActiveTab.go_back()
+		})
+		c.browser.ActiveTab.TaskRunner.ScheduleTask(task)
 	} else if c.address_rect.ContainsPoint(x, y) {
 		c.focus = "address bar"
 		c.address_bar = ""
 	} else {
 		for i, tab := range c.browser.tabs {
 			if c.tab_rect(i).ContainsPoint(x, y) {
-				c.browser.ActiveTab = tab
+				c.browser.set_active_tab(tab)
+				active_tab := c.browser.ActiveTab
+				task := task.NewTask(func(i ...interface{}) {
+					active_tab.SetNeedsRender()
+				})
+				active_tab.TaskRunner.ScheduleTask(task)
+				break
 			}
 		}
-		c.browser.raster_tab()
 	}
 }
 
@@ -154,11 +163,13 @@ func (c *Chrome) keypress(char rune) bool {
 	return false
 }
 
-func (c *Chrome) enter() {
+func (c *Chrome) enter() bool {
 	if c.focus == "address bar" {
-		c.browser.ActiveTab.Load(url.NewURL(c.address_bar), "")
+		c.browser.ActiveTab.browser.ScheduleLoad(url.NewURL(c.address_bar), "")
 		c.focus = ""
+		return true
 	}
+	return false
 }
 
 func (c *Chrome) blur() {

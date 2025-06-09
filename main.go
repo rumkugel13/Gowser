@@ -22,6 +22,7 @@ func main() {
 	}
 	browser := browser.NewBrowser()
 	browser.NewTab(url)
+	browser.RasterAndDraw()
 	mainloop(browser)
 }
 
@@ -51,7 +52,8 @@ func mainloop(browser *browser.Browser) {
 				browser.HandleKey(e)
 			}
 		}
-		browser.ActiveTab.TaskRunner.Run()
+		browser.RasterAndDraw()
+		browser.ScheduleAnimationFrame()
 
 		sdl.Delay(1)
 	}

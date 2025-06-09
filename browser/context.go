@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"gowser/css"
 	"gowser/html"
+	"gowser/task"
 	"os"
+	"time"
 
 	duk "gopkg.in/olebedev/go-duktape.v3"
 )
@@ -18,6 +20,7 @@ type JSContext struct {
 	tab            *Tab
 	node_to_handle map[*html.Node]int
 	handle_to_node map[int]*html.Node
+	Discarded      bool
 }
 
 func NewJSContext(tab *Tab) *JSContext {
@@ -27,6 +30,7 @@ func NewJSContext(tab *Tab) *JSContext {
 		tab:            tab,
 		node_to_handle: make(map[*html.Node]int),
 		handle_to_node: make(map[int]*html.Node),
+		Discarded:      false,
 	}
 	js.ctx.PushGlobalGoFunction("_log", log)
 	_, err := js.ctx.PushGlobalGoFunction("_querySelectorAll", func(ctx *duk.Context) int {
@@ -64,19 +68,39 @@ func NewJSContext(tab *Tab) *JSContext {
 	}
 	_, err = js.ctx.PushGlobalGoFunction("_XMLHttpRequest_send", func(ctx *duk.Context) int {
 		method := ctx.GetString(0) // 0 is bottom of stack [0, .., -1]
-		url := ctx.GetString(-2)   // -2 is second to top, in this case [0, -2, -1]
-		body := ctx.GetString(-1)  // -1 is top of stack is stack is laid out correctly
-		out := js.xmlHttpRequest_send(method, url, body)
+		url := ctx.GetString(-4)   // -2 is second to top, in this case [0, -2, -1]
+		body := ctx.GetString(-3)  // -1 is top of stack is stack is laid out correctly
+		is_async := ctx.GetBoolean(-2)
+		handle := ctx.GetInt(-1)
+		out := js.xmlHttpRequest_send(method, url, body, is_async, handle)
 		ctx.PushString(out)
 		return 1
 	})
 	if err != nil {
 		fmt.Println(err)
 	}
+	_, err = js.ctx.PushGlobalGoFunction("_setTimeout", func(ctx *duk.Context) int {
+		handle := ctx.GetInt(-2)
+		time := ctx.GetInt(-1)
+		js.setTimeout(handle, time)
+		return 0
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	_,err = js.ctx.PushGlobalGoFunction("_requestAnimationFrame", func(ctx *duk.Context) int {
+		js.requestAnimationFrame()
+		return 0
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	tab.browser.measure.Time("eval_runtime_js")
 	err = js.ctx.PevalString(RUNTIME_JS)
 	if err != nil {
 		fmt.Println(err)
 	}
+	tab.browser.measure.Stop("eval_runtime_js")
 	return js
 }
 
@@ -97,15 +121,26 @@ func (j *JSContext) DispatchEvent(eventType string, elt *html.Node) bool {
 		handle = val
 	}
 
+	j.tab.browser.measure.Time("eval_dispatch_event")
 	err := j.ctx.PevalString(fmt.Sprintf("new Node(%d).dispatchEvent(new Event(\"%s\"));", handle, eventType))
 	if err != nil {
 		fmt.Println("Error executing dispatchEvent:", err)
 	}
+	j.tab.browser.measure.Stop("eval_dispatch_event")
 
 	do_default := j.ctx.GetBoolean(-1)
 
 	j.ctx.Pop() // pop Node
 	return !do_default
+}
+
+func (j *JSContext) dispatch_settimeout(handle int) {
+	if j.Discarded {
+		return
+	}
+	j.tab.browser.measure.Time("eval_set_timeout")
+	j.ctx.PevalString(fmt.Sprintf("__runSetTimeout(%d)", handle))
+	j.tab.browser.measure.Stop("eval_set_timeout")
 }
 
 func log(ctx *duk.Context) int {
@@ -154,10 +189,10 @@ func (j *JSContext) innerHTML_set(handle int, s string) {
 	for _, child := range elt.Children {
 		child.Parent = elt
 	}
-	j.tab.render()
+	j.tab.SetNeedsRender()
 }
 
-func (j *JSContext) xmlHttpRequest_send(method string, url string, body string) string {
+func (j *JSContext) xmlHttpRequest_send(method string, url string, body string, is_async bool, handle int) string {
 	full_url := j.tab.url.Resolve(url)
 	if !j.tab.allowed_request(full_url) {
 		panic("Cross-origin XHR blocked by CSP")
@@ -165,8 +200,43 @@ func (j *JSContext) xmlHttpRequest_send(method string, url string, body string) 
 	if full_url.Origin() != j.tab.url.Origin() {
 		panic("Cross-origin XHR request not allowed")
 	}
-	_, out := full_url.Request(j.tab.url, body)
-	return out
+	run_load := func() string {
+		_, response := full_url.Request(j.tab.url, body)
+		task := task.NewTask(func(i ...interface{}) {
+			j.dispatch_xhr_onload(response, handle)
+		}, response, handle)
+		j.tab.TaskRunner.ScheduleTask(task)
+		return response
+	}
+	if !is_async {
+		return run_load()
+	} else {
+		go run_load()
+		return ""
+	}
+}
+
+func (j *JSContext) dispatch_xhr_onload(out string, handle int) {
+	if j.Discarded {
+		return
+	}
+	j.tab.browser.measure.Time("eval_dispatch_xhr_onload")
+	j.ctx.EvalString(fmt.Sprintf("__runXHROnload(%s, %d)", out, handle))
+	j.tab.browser.measure.Stop("eval_dispatch_xhr_onload")
+}
+
+func (j *JSContext) setTimeout(handle int, t int) {
+	run_callback := func() {
+		task := task.NewTask(func(i ...interface{}) {
+			j.dispatch_settimeout(handle)
+		}, handle)
+		j.tab.TaskRunner.ScheduleTask(task)
+	}
+	time.AfterFunc(time.Duration(t)*time.Millisecond, run_callback)
+}
+
+func (j *JSContext) requestAnimationFrame() {
+	j.tab.browser.SetNeedsAnimationFrame(j.tab)
 }
 
 func load_runtime_js() {
