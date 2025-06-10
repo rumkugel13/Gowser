@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"gowser/display"
 	"image"
-
+	"image/color"
 	"image/draw"
+
 	"strings"
 
 	"github.com/anthonynsimon/bild/adjust"
@@ -237,7 +238,10 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 
 	// Apply opacity to the source image BEFORE blending
 	if d.opacity < 1.0 {
-		src = adjust.Brightness(src, (d.opacity*2)-1)
+		src = adjust.Apply(src, func(r color.RGBA) color.RGBA {
+			r.A = uint8(float64(r.A) * d.opacity)
+			return r
+		})
 	}
 
 	// Get the destination image from the canvas
