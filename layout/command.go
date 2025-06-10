@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"gowser/display"
 	"image"
-	"image/color"
+	"image/draw"
 	"strings"
 
+	"github.com/anthonynsimon/bild/adjust"
+	"github.com/anthonynsimon/bild/blend"
+	"github.com/anthonynsimon/bild/fcolor"
 	"github.com/fogleman/gg"
 	"golang.org/x/image/font"
 )
@@ -230,62 +233,48 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 
 	// Get the image from the layer context
 	src := layerContext.Image().(*image.RGBA)
-	bounds := src.Bounds()
-	dst := canvas.Image().(*image.RGBA)
 
-	result := image.NewRGBA(bounds)
-	for y := int(d.rect.Top); y < int(d.rect.Bottom); y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			srcColor := src.RGBAAt(x, y)
-			destColor := dst.RGBAAt(x, y)
+	// Apply opacity to the source image BEFORE blending
+    if d.opacity < 1.0 {
+        src = adjust.Brightness(src, d.opacity)
+    }
 
-			if parse_blend_mode(d.blend_mode) == BlendModeDifference {
-				// Difference blending
-				r := uint8(abs(int(srcColor.R) - int(destColor.R)))
-				g := uint8(abs(int(srcColor.G) - int(destColor.G)))
-				b := uint8(abs(int(srcColor.B) - int(destColor.B)))
-				a := uint8(float64(srcColor.A) * d.opacity)
+    // Get the destination image from the canvas
+    dst := canvas.Image().(*image.RGBA)
 
-				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
-			} else if parse_blend_mode(d.blend_mode) == BlendModeMultiply {
-				// Multiply blending
-				r := uint8(float64(srcColor.R) / 255 * float64(destColor.R) / 255 * 255.0)
-				g := uint8(float64(srcColor.G) / 255 * float64(destColor.G) / 255 * 255.0)
-				b := uint8(float64(srcColor.B) / 255 * float64(destColor.B) / 255 * 255.0)
-				a := uint8(float64(srcColor.A) * d.opacity)
+	var blended image.Image
 
-				result.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
-			} else if parse_blend_mode(d.blend_mode) == BlendModeDestinationIn {
-				// Destination-In blending: Keep the destination where it overlaps with the source
-				// The alpha of the result is the alpha of the destination multiplied by the alpha of the source
-				sourceAlpha := float64(srcColor.A) / 255.0 * d.opacity
-				destAlpha := float64(destColor.A) / 255.0
-
-				alpha := uint8((sourceAlpha * destAlpha) * 255.0)
-				if alpha > 0 {
-					result.SetRGBA(x, y, color.RGBA{
-						R: destColor.R,
-						G: destColor.G,
-						B: destColor.B,
-						A: alpha,
-					})
-				} else {
-					// If alpha is zero, set the pixel to fully transparent
-					result.SetRGBA(x, y, color.RGBA{A: 0})
-				}
-			} else { // source-over and transparency
-				result.SetRGBA(x, y, color.RGBA{
-					R: srcColor.R,
-					G: srcColor.G,
-					B: srcColor.B,
-					A: uint8(float64(srcColor.A) * d.opacity),
-				})
-			}
-		}
-	}
+    // Perform blending based on the blend mode
+    switch d.blend_mode {
+    case "difference":
+        blended = blend.Difference(dst, src)
+    case "multiply":
+        blended = blend.Multiply(dst, src)
+    case "destination-in":
+        // DestinationIn:  Show destination only where source exists
+        blended = destinationInBlend(dst, src)
+    default: // source-over
+        // SourceOver: Show source over destination
+        blended = src
+    }
 
 	// Draw the image with opacity onto the main canvas
-	canvas.DrawImage(result, 0, 0)
+	draw.Draw(dst, dst.Bounds(), blended, image.Point{0, 0}, draw.Over)
+}
+
+func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
+    // Define the custom blend function for DestinationIn
+    destinationInFunc := func(fg fcolor.RGBAF64, bg fcolor.RGBAF64) fcolor.RGBAF64 {
+        // If the source (foreground) pixel is opaque, return the destination (background) pixel;
+        // otherwise, return transparent.
+        if fg.A > 0 {
+            return bg
+        }
+        return fcolor.RGBAF64{R: 0, G: 0, B: 0, A: 0}
+    }
+
+    // Use the blend.Blend function with our custom blend function
+    return blend.Blend(dst, src, destinationInFunc)
 }
 
 func abs(a int) int {
