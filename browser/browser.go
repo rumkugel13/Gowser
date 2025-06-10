@@ -39,38 +39,40 @@ func init() {
 }
 
 type Browser struct {
-	tabs                    []*Tab
-	ActiveTab               *Tab
-	sdl_window              *sdl.Window
-	root_surface            *gg.Context
-	chrome                  *Chrome
-	focus                   string
-	RED_MASK                uint32
-	GREEN_MASK              uint32
-	BLUE_MASK               uint32
-	ALPHA_MASK              uint32
-	chrome_surface          *gg.Context
-	tab_surface             *gg.Context
-	animation_timer         *time.Timer
-	needs_raster_and_draw   bool
-	needs_animation_frame   bool
-	measure                 *MeasureTime
-	lock                    *sync.Mutex
-	active_tab_url          *url.URL
-	active_tab_scroll       float64
-	active_tab_height       float64
-	active_tab_display_list []layout.Command
+	tabs                            []*Tab
+	ActiveTab                       *Tab
+	sdl_window                      *sdl.Window
+	root_surface                    *gg.Context
+	chrome                          *Chrome
+	focus                           string
+	RED_MASK                        uint32
+	GREEN_MASK                      uint32
+	BLUE_MASK                       uint32
+	ALPHA_MASK                      uint32
+	chrome_surface                  *gg.Context
+	tab_surface                     *gg.Context
+	animation_timer                 *time.Timer
+	needs_composite_raster_and_draw bool
+	needs_animation_frame           bool
+	measure                         *MeasureTime
+	lock                            *sync.Mutex
+	active_tab_url                  *url.URL
+	active_tab_scroll               float64
+	active_tab_height               float64
+	active_tab_display_list         []layout.Command
+	composited_layers               []*layout.CompositedLayer
+	draw_list                       []layout.Command
 }
 
 func NewBrowser() *Browser {
 	// browser thread
 	browser := &Browser{
-		tabs:                  make([]*Tab, 0),
-		ActiveTab:             nil,
-		needs_raster_and_draw: false,
-		needs_animation_frame: false,
-		measure:               NewMeasureTime(),
-		lock:                  &sync.Mutex{},
+		tabs:                            make([]*Tab, 0),
+		ActiveTab:                       nil,
+		needs_composite_raster_and_draw: false,
+		needs_animation_frame:           false,
+		measure:                         NewMeasureTime(),
+		lock:                            &sync.Mutex{},
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
@@ -108,9 +110,15 @@ func (b *Browser) Draw() {
 
 	// fast:
 	{
-		srcRect := image.Rect(0, int(b.ActiveTab.scroll), WIDTH, b.tab_surface.Height())
-		dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, max(b.root_surface.Height()-int(b.chrome.bottom), b.tab_surface.Height()))
-		draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
+		canvas.Push()
+		canvas.Translate(0, b.chrome.bottom-b.active_tab_scroll)
+		for _, item := range b.draw_list {
+			item.Execute(canvas)
+		}
+		canvas.Pop()
+		// srcRect := image.Rect(0, int(b.ActiveTab.scroll), WIDTH, b.tab_surface.Height())
+		// dstRect := image.Rect(0, int(b.chrome.bottom), WIDTH, max(b.root_surface.Height()-int(b.chrome.bottom), b.tab_surface.Height()))
+		// draw.Draw(canvas.Image().(*image.RGBA), dstRect, b.tab_surface.Image(), srcRect.Min, draw.Src)
 
 		chromeRect := image.Rect(0, 0, WIDTH, int(b.chrome.bottom))
 		draw.Draw(canvas.Image().(*image.RGBA), chromeRect, b.chrome_surface.Image(), chromeRect.Min, draw.Src)
@@ -193,7 +201,7 @@ func (b *Browser) HandleDown() {
 		return
 	}
 	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll + SCROLL_STEP)
-	b.SetNeedsRasterAndDraw()
+	b.SetNeedsCompositeRasterAndDraw()
 	b.needs_animation_frame = true
 	b.lock.Unlock()
 }
@@ -209,12 +217,12 @@ func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
 	if float64(e.Y) < b.chrome.bottom {
 		b.focus = ""
 		b.chrome.click(float64(e.X), float64(e.Y))
-		b.SetNeedsRasterAndDraw()
+		b.SetNeedsCompositeRasterAndDraw()
 	} else {
 		if b.focus != "content" {
 			b.focus = "content"
 			b.chrome.focus = ""
-			b.SetNeedsRasterAndDraw()
+			b.SetNeedsCompositeRasterAndDraw()
 		}
 		b.chrome.blur()
 		tab_y := float64(e.Y) - b.chrome.bottom
@@ -234,7 +242,7 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 		return
 	}
 	if b.chrome.keypress(rune(char)) {
-		b.SetNeedsRasterAndDraw()
+		b.SetNeedsCompositeRasterAndDraw()
 	} else if b.focus == "content" {
 		task := task.NewTask(func(i ...interface{}) {
 			b.ActiveTab.keypress(rune(char))
@@ -247,7 +255,7 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 func (b *Browser) HandleEnter() {
 	b.lock.Lock()
 	if b.chrome.enter() {
-		b.SetNeedsRasterAndDraw()
+		b.SetNeedsCompositeRasterAndDraw()
 	}
 	b.lock.Unlock()
 }
@@ -264,25 +272,27 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 			b.active_tab_display_list = data.display_list
 		}
 		b.animation_timer = nil
-		b.SetNeedsRasterAndDraw()
+		b.SetNeedsCompositeRasterAndDraw()
 	}
 	b.lock.Unlock()
 }
 
-func (b *Browser) RasterAndDraw() {
+func (b *Browser) CompositeRasterAndDraw() {
 	b.lock.Lock()
-	if !b.needs_raster_and_draw {
+	if !b.needs_composite_raster_and_draw {
 		b.lock.Unlock()
 		return
 	}
 	b.measure.Time("raster_and_draw")
 
+	b.composite()
 	b.raster_chrome()
 	b.raster_tab()
+	b.paint_draw_list()
 	b.Draw()
 
 	b.measure.Stop("raster_and_draw")
-	b.needs_raster_and_draw = false
+	b.needs_composite_raster_and_draw = false
 	b.lock.Unlock()
 }
 
@@ -306,8 +316,8 @@ func (b *Browser) ScheduleAnimationFrame() {
 	b.lock.Unlock()
 }
 
-func (b *Browser) SetNeedsRasterAndDraw() {
-	b.needs_raster_and_draw = true
+func (b *Browser) SetNeedsCompositeRasterAndDraw() {
+	b.needs_composite_raster_and_draw = true
 }
 
 func (b *Browser) SetNeedsAnimationFrame(tab *Tab) {
@@ -335,22 +345,25 @@ func (b *Browser) set_active_tab(new_tab *Tab) {
 }
 
 func (b *Browser) raster_tab() {
-	if b.active_tab_height == 0 {
-		return
-	}
+	// if b.active_tab_height == 0 {
+	// 	return
+	// }
 	start := time.Now()
-	tab_height := b.active_tab_height
+	// tab_height := b.active_tab_height
 
-	if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
-		b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
-	}
+	// if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
+	// 	b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
+	// }
 
-	canvas := b.tab_surface
-	canvas.SetColor(color.White)
-	canvas.Clear()
+	// canvas := b.tab_surface
+	// canvas.SetColor(color.White)
+	// canvas.Clear()
 	// layout.PrintCommands(b.active_tab_display_list, 0)
-	for _, cmd := range b.active_tab_display_list {
-		cmd.Execute(canvas)
+	// for _, cmd := range b.active_tab_display_list {
+	// 	cmd.Execute(canvas)
+	// }
+	for _, composited_layer := range b.composited_layers {
+		composited_layer.Raster()
 	}
 	fmt.Println("Tab raster took:", time.Since(start))
 }
@@ -367,4 +380,59 @@ func (b *Browser) raster_chrome() {
 		cmd.Execute(canvas)
 	}
 	fmt.Println("Chrome raster took:", time.Since(start))
+}
+
+func (b *Browser) composite() {
+	add_parent_pointers(b.active_tab_display_list, nil)
+	b.composited_layers = make([]*layout.CompositedLayer, 0)
+
+	var all_commands []layout.Command
+	for _, cmd := range b.active_tab_display_list {
+		all_commands = append(all_commands, layout.CommandTreeToList(cmd)...)
+	}
+
+	var paint_commands []layout.Command
+	for _, cmd := range all_commands {
+		if layout.IsPaintCommand(cmd) {
+			paint_commands = append(paint_commands, cmd)
+		}
+	}
+
+	for _, cmd := range paint_commands {
+		layer := layout.NewCompositedLayer(cmd)
+		b.composited_layers = append(b.composited_layers, layer)
+	}
+}
+
+func add_parent_pointers(nodes []layout.Command, parent layout.Command) {
+	for _, node := range nodes {
+		node.SetParent(parent)
+		add_parent_pointers(*node.Children(), node)
+	}
+}
+
+func (b *Browser) paint_draw_list() {
+	b.draw_list = make([]layout.Command, 0)
+	new_effects := make(map[layout.Command]layout.Command)
+	for _, composited_layer := range b.composited_layers {
+		var current_effect layout.Command = layout.NewDrawCompositedLayer(composited_layer)
+		if len(composited_layer.DisplayItems) == 0 {
+			continue
+		}
+		parent := composited_layer.DisplayItems[0].GetParent()
+		for parent != nil {
+			if new_parent, ok := new_effects[parent]; ok {
+				children := new_parent.Children()
+				// note: do we need addchild method?
+				*children = append(*children, current_effect)
+				break
+			} else {
+				current_effect = parent.(*layout.DrawBlend).Clone(current_effect)
+				parent = parent.GetParent()
+			}
+		}
+		if parent == nil {
+			b.draw_list = append(b.draw_list, current_effect)
+		}
+	}
 }

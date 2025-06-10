@@ -5,8 +5,7 @@ import (
 	"gowser/display"
 	"image"
 	"image/color"
-	"image/draw"
-
+	// "image/draw"
 	"strings"
 
 	"github.com/anthonynsimon/bild/adjust"
@@ -18,158 +17,157 @@ import (
 
 type Command interface {
 	Execute(*gg.Context)
-	Rect() Rect
-	Top() float64
-	Bottom() float64
+	Rect() *Rect
 	String() string
+	Children() *[]Command
+	SetParent(Command)
+	GetParent() Command
+}
+
+type PaintCommand struct {
+	rect     *Rect
+	children []Command
+	parent   Command
+}
+
+func (p *PaintCommand) Rect() *Rect {
+	return p.rect
+}
+
+func (p *PaintCommand) Children() *[]Command {
+	return &p.children
+}
+
+func (p *PaintCommand) SetParent(parent Command) {
+	p.parent = parent
+}
+
+func (p *PaintCommand) GetParent() Command {
+	return p.parent
 }
 
 type DrawText struct {
-	rect  *Rect
+	PaintCommand
 	text  string
 	font  font.Face
 	color string
 }
 
 func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
+	rect := NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font))
 	return &DrawText{
-		rect:  NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font)),
-		text:  text,
-		font:  font,
-		color: color,
+		PaintCommand: PaintCommand{rect: rect},
+		text:         text,
+		font:         font,
+		color:        color,
 	}
 }
 
 func (d *DrawText) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
 	canvas.SetFontFace(d.font)
-	canvas.DrawStringAnchored(d.text, d.rect.Left, d.rect.Top, 0, 1)
-}
-
-func (d *DrawText) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawText) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawText) Bottom() float64 {
-	return d.rect.Bottom
+	canvas.DrawStringAnchored(d.text, d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, 0, 1)
 }
 
 func (d *DrawText) String() string {
-	return fmt.Sprint("DrawText(rect=", d.rect, ", text='", d.text, "', color='", d.color, "')")
+	return fmt.Sprint("DrawText(rect=", d.PaintCommand.rect, ", text='", d.text, "', color='", d.color, "')")
 }
 
 type DrawRRect struct {
-	rect   *Rect
+	PaintCommand
 	radius float64
 	color  string
 }
 
 func NewDrawRRect(rect *Rect, radius float64, color string) *DrawRRect {
 	return &DrawRRect{
-		rect:   rect,
-		radius: radius,
-		color:  color,
+		PaintCommand: PaintCommand{rect: rect},
+		radius:       radius,
+		color:        color,
 	}
 }
 
 func (d *DrawRRect) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRoundedRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top, d.radius)
+	canvas.DrawRoundedRectangle(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right-d.PaintCommand.rect.Left, d.PaintCommand.rect.Bottom-d.PaintCommand.rect.Top, d.radius)
 	canvas.Fill()
 }
 
-func (d *DrawRRect) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawRRect) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawRRect) Bottom() float64 {
-	return d.rect.Bottom
-}
-
 func (d *DrawRRect) String() string {
-	return fmt.Sprint("DrawRRect(rect=", d.rect, ", radius=", d.radius, ", color='", d.color, "')")
+	return fmt.Sprint("DrawRRect(rect=", d.PaintCommand.rect, ", radius=", d.radius, ", color='", d.color, "')")
 }
 
 type DrawOutline struct {
-	rect      *Rect
+	PaintCommand
 	color     string
 	thickness float64
 }
 
 func NewDrawOutline(rect *Rect, color string, thickness float64) *DrawOutline {
 	return &DrawOutline{
-		rect:      rect,
-		color:     color,
-		thickness: thickness,
+		PaintCommand: PaintCommand{rect: rect},
+		color:        color,
+		thickness:    thickness,
 	}
 }
 
 func (d *DrawOutline) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
-	canvas.DrawRectangle(d.rect.Left, d.rect.Top, d.rect.Right-d.rect.Left, d.rect.Bottom-d.rect.Top)
+	canvas.DrawRectangle(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right-d.PaintCommand.rect.Left, d.PaintCommand.rect.Bottom-d.PaintCommand.rect.Top)
 	canvas.SetLineWidth(d.thickness)
 	canvas.Stroke()
 }
 
-func (d *DrawOutline) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawOutline) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawOutline) Bottom() float64 {
-	return d.rect.Bottom
-}
-
 func (d *DrawOutline) String() string {
-	return fmt.Sprint("DrawOutline(rect=", d.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
+	return fmt.Sprint("DrawOutline(rect=", d.PaintCommand.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
 }
 
 type DrawLine struct {
-	rect      *Rect
+	PaintCommand
 	color     string
 	thickness float64
 }
 
 func NewDrawLine(x1, y1, x2, y2 float64, color string, thickness float64) *DrawLine {
 	return &DrawLine{
-		rect:      NewRect(x1, y1, x2, y2),
-		color:     color,
-		thickness: thickness,
+		PaintCommand: PaintCommand{rect: NewRect(x1, y1, x2, y2)},
+		color:        color,
+		thickness:    thickness,
 	}
 }
 
 func (d *DrawLine) Execute(canvas *gg.Context) {
 	canvas.SetColor(display.ParseColor(d.color))
 	canvas.SetLineWidth(d.thickness)
-	canvas.DrawLine(d.rect.Left, d.rect.Top, d.rect.Right, d.rect.Bottom)
+	canvas.DrawLine(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right, d.PaintCommand.rect.Bottom)
 	canvas.Stroke()
 }
 
-func (d *DrawLine) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawLine) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawLine) Bottom() float64 {
-	return d.rect.Bottom
-}
-
 func (d *DrawLine) String() string {
-	return fmt.Sprint("DrawLine(rect=", d.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
+	return fmt.Sprint("DrawLine(rect=", d.PaintCommand.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
+}
+
+type DrawCompositedLayer struct {
+	PaintCommand
+	composited_layer *CompositedLayer
+}
+
+func NewDrawCompositedLayer(composited_layer *CompositedLayer) *DrawCompositedLayer {
+	return &DrawCompositedLayer{
+		composited_layer: composited_layer,
+		PaintCommand:     PaintCommand{rect: composited_layer.composited_bounds()},
+	}
+}
+
+func (d *DrawCompositedLayer) Execute(canvas *gg.Context) {
+	layer := d.composited_layer
+	bounds := layer.composited_bounds()
+
+	canvas.DrawImage(layer.surface.Image(), int(bounds.Left), int(bounds.Top))
+}
+
+func (d *DrawCompositedLayer) String() string {
+	return "DrawCompositedLayer()"
 }
 
 type BlendMode uint
@@ -195,31 +193,93 @@ func parse_blend_mode(blend_mode string) BlendMode {
 	}
 }
 
+type VisualEffectCommand interface {
+	Clone(child Command) VisualEffectCommand // Returns a new instance with updated children
+}
+
+type VisualEffect struct {
+	rect     *Rect
+	children []Command
+	parent   Command
+}
+
+func NewVisualEffect(rect *Rect, children []Command) *VisualEffect {
+	for _, child := range children {
+		rect = rect.Union(child.Rect())
+	}
+	return &VisualEffect{
+		rect:     rect,
+		children: children,
+	}
+}
+
+func (p *VisualEffect) Children() *[]Command {
+	return &p.children
+}
+
+func (p *VisualEffect) Rect() *Rect {
+	return p.rect
+}
+
+func (p *VisualEffect) SetParent(parent Command) {
+	p.parent = parent
+}
+
+func (p *VisualEffect) GetParent() Command {
+	return p.parent
+}
+
 type DrawBlend struct {
+	PaintCommand
+	*VisualEffect
 	opacity     float64
 	blend_mode  string
 	should_save bool
-	children    []Command
-	rect        *Rect
+}
+
+func (d *DrawBlend) Children() *[]Command {
+	return d.PaintCommand.Children()
+}
+
+func (d *DrawBlend) GetParent() Command {
+	return d.PaintCommand.GetParent()
+}
+
+func (d *DrawBlend) Rect() *Rect {
+	return d.PaintCommand.Rect()
+}
+
+func (d *DrawBlend) SetParent(command Command) {
+	d.PaintCommand.SetParent(command)
 }
 
 func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawBlend {
-	var rect Rect
+	rect := &Rect{}
 	for _, child := range children {
 		rect = rect.Union(child.Rect())
 	}
 	return &DrawBlend{
-		opacity:     opacity,
-		blend_mode:  blend_mode,
-		should_save: blend_mode != "" || opacity < 1.0,
-		children:    children,
-		rect:        &rect,
+		PaintCommand: PaintCommand{rect: rect, children: children},
+		VisualEffect: NewVisualEffect(&Rect{}, children),
+		opacity:      opacity,
+		blend_mode:   blend_mode,
+		should_save:  blend_mode != "" || opacity < 1.0,
+	}
+}
+
+func (d *DrawBlend) Clone(child Command) *DrawBlend {
+	return &DrawBlend{
+		PaintCommand: d.PaintCommand,
+		VisualEffect: NewVisualEffect(&Rect{}, []Command{child}),
+		opacity:      d.opacity,
+		blend_mode:   d.blend_mode,
+		should_save:  d.should_save,
 	}
 }
 
 func (d *DrawBlend) Execute(canvas *gg.Context) {
 	if !d.should_save {
-		for _, cmd := range d.children {
+		for _, cmd := range d.VisualEffect.children {
 			cmd.Execute(canvas)
 		}
 		return
@@ -229,7 +289,7 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	layerContext := gg.NewContext(canvas.Width(), canvas.Height())
 
 	// Execute each child command on the layer context
-	for _, cmd := range d.children {
+	for _, cmd := range d.VisualEffect.children {
 		cmd.Execute(layerContext)
 	}
 
@@ -264,9 +324,9 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	}
 
 	// Draw the image with opacity onto the main canvas
-	rect := image.Rect(int(d.rect.Left), int(d.rect.Top), int(d.rect.Right), int(d.rect.Bottom))
-	draw.Draw(dst, rect, blended, image.Point{X: int(d.rect.Left), Y: int(d.rect.Top)}, draw.Over)
-	// canvas.DrawImage(blended, 0, 0)
+	// rect := image.Rect(int(d.VisualEffect.rect.Left), int(d.VisualEffect.rect.Top), int(d.VisualEffect.rect.Right), int(d.VisualEffect.rect.Bottom))
+	// draw.Draw(dst, rect, blended, image.Point{X: int(d.VisualEffect.rect.Left), Y: int(d.VisualEffect.rect.Top)}, draw.Over)
+	canvas.DrawImage(blended, 0, 0)
 }
 
 func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
@@ -284,34 +344,32 @@ func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
 	return blend.Blend(dst, src, destinationInFunc)
 }
 
-func abs(a int) int {
-	if a < 0 {
-		return -a
-	}
-	return a
-}
-
-func (d *DrawBlend) Rect() Rect {
-	return *d.rect
-}
-
-func (d *DrawBlend) Top() float64 {
-	return d.rect.Top
-}
-
-func (d *DrawBlend) Bottom() float64 {
-	return d.rect.Bottom
-}
-
 func (d *DrawBlend) String() string {
-	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
+	return fmt.Sprint("DrawBlend(rect=", d.PaintCommand.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
 }
 
 func PrintCommands(list []Command, indent int) {
 	for _, cmd := range list {
 		fmt.Println(strings.Repeat(" ", indent) + cmd.String())
 		if bl, ok := cmd.(*DrawBlend); ok {
-			PrintCommands(bl.children, indent+2)
+			PrintCommands(*bl.Children(), indent+2)
 		}
+	}
+}
+
+func CommandTreeToList(tree Command) []Command {
+	list := []Command{tree}
+	for _, child := range *tree.Children() {
+		list = append(list, CommandTreeToList(child)...)
+	}
+	return list
+}
+
+func IsPaintCommand(cmd Command) bool {
+	switch cmd.(type) {
+	case *DrawLine, *DrawRRect, *DrawText, *DrawOutline:
+		return true // These embed PaintCommand
+	default:
+		return false
 	}
 }
