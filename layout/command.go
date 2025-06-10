@@ -260,13 +260,14 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	}
 
 	// Draw the image with opacity onto the main canvas
-	draw.Draw(dst, dst.Bounds(), blended, image.Point{0, 0}, draw.Over)
+	rect := image.Rect(int(d.rect.Left), int(d.rect.Top), int(d.rect.Right), int(d.rect.Bottom))
+	draw.Draw(dst, rect, blended, image.Point{X: int(d.rect.Left), Y: int(d.rect.Top)}, draw.Over)
 	// canvas.DrawImage(blended, 0, 0)
 }
 
 func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
 	// Define the custom blend function for DestinationIn
-	destinationInFunc := func(fg fcolor.RGBAF64, bg fcolor.RGBAF64) fcolor.RGBAF64 {
+	destinationInFunc := func(bg fcolor.RGBAF64, fg fcolor.RGBAF64) fcolor.RGBAF64 {
 		// If the source (foreground) pixel is opaque, return the destination (background) pixel;
 		// otherwise, return transparent.
 		if fg.A > 0 {

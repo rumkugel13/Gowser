@@ -11,7 +11,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "output": "Gowser",
-            "args": ["https://browser.engineering/", "http://localhost:8000"]
+            "args": ["https://browser.engineering/visual-effects.html","https://rumkugel13.github.io/test.html", "https://browser.engineering/", "http://localhost:8000"]
         }
     ]
 }
