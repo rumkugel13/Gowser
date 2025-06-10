@@ -26,6 +26,18 @@ var (
 	DEFAULT_STYLE_SHEET []css.Rule
 )
 
+func init() {
+	data, err := os.ReadFile("browser.css")
+	if err != nil {
+		fmt.Println("Error loading default style sheet:", err)
+		return
+	}
+
+	fmt.Println("Loading default style sheet from browser.css")
+	parser := css.NewCSSParser(string(data))
+	DEFAULT_STYLE_SHEET = parser.Parse()
+}
+
 type Browser struct {
 	tabs                    []*Tab
 	ActiveTab               *Tab
@@ -85,7 +97,6 @@ func NewBrowser() *Browser {
 	browser.chrome = NewChrome(browser)
 	browser.chrome_surface = gg.NewContext(WIDTH, int(browser.chrome.bottom))
 	browser.tab_surface = nil
-	load_default_style_sheet()
 	return browser
 }
 
@@ -356,16 +367,4 @@ func (b *Browser) raster_chrome() {
 		cmd.Execute(canvas)
 	}
 	fmt.Println("Chrome raster took:", time.Since(start))
-}
-
-func load_default_style_sheet() {
-	data, err := os.ReadFile("browser.css")
-	if err != nil {
-		fmt.Println("Error loading default style sheet:", err)
-		return
-	}
-
-	fmt.Println("Loading default style sheet from browser.css")
-	parser := css.NewCSSParser(string(data))
-	DEFAULT_STYLE_SHEET = parser.Parse()
 }

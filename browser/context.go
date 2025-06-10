@@ -15,6 +15,17 @@ var (
 	RUNTIME_JS string
 )
 
+func init() {
+	data, err := os.ReadFile("runtime.js")
+	if err != nil {
+		fmt.Println("Error loading js runtime:", err)
+		return
+	}
+
+	fmt.Println("Loading js runtime from runtime.js")
+	RUNTIME_JS = string(data)
+}
+
 type JSContext struct {
 	ctx            *duk.Context
 	tab            *Tab
@@ -24,7 +35,6 @@ type JSContext struct {
 }
 
 func NewJSContext(tab *Tab) *JSContext {
-	load_runtime_js()
 	js := &JSContext{
 		ctx:            duk.New(),
 		tab:            tab,
@@ -252,15 +262,4 @@ func (j *JSContext) setTimeout(handle int, t int) {
 
 func (j *JSContext) requestAnimationFrame() {
 	j.tab.browser.SetNeedsAnimationFrame(j.tab)
-}
-
-func load_runtime_js() {
-	data, err := os.ReadFile("runtime.js")
-	if err != nil {
-		fmt.Println("Error loading js runtime:", err)
-		return
-	}
-
-	fmt.Println("Loading js runtime runtime.js")
-	RUNTIME_JS = string(data)
 }
