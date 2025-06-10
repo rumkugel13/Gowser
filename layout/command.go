@@ -250,12 +250,12 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	var blended image.Image
 
 	// Perform blending based on the blend mode
-	switch d.blend_mode {
-	case "difference":
+	switch parse_blend_mode(d.blend_mode) {
+	case BlendModeDifference:
 		blended = blend.Difference(dst, src)
-	case "multiply":
+	case BlendModeMultiply:
 		blended = blend.Multiply(dst, src)
-	case "destination-in":
+	case BlendModeDestinationIn:
 		// DestinationIn:  Show destination only where source exists
 		blended = destinationInBlend(dst, src)
 	default: // source-over
