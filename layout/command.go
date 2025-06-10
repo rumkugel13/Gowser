@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gowser/display"
 	"image"
+
 	"image/draw"
 	"strings"
 
@@ -235,46 +236,47 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	src := layerContext.Image().(*image.RGBA)
 
 	// Apply opacity to the source image BEFORE blending
-    if d.opacity < 1.0 {
-        src = adjust.Brightness(src, d.opacity)
-    }
+	if d.opacity < 1.0 {
+		src = adjust.Brightness(src, (d.opacity*2)-1)
+	}
 
-    // Get the destination image from the canvas
-    dst := canvas.Image().(*image.RGBA)
+	// Get the destination image from the canvas
+	dst := canvas.Image().(*image.RGBA)
 
 	var blended image.Image
 
-    // Perform blending based on the blend mode
-    switch d.blend_mode {
-    case "difference":
-        blended = blend.Difference(dst, src)
-    case "multiply":
-        blended = blend.Multiply(dst, src)
-    case "destination-in":
-        // DestinationIn:  Show destination only where source exists
-        blended = destinationInBlend(dst, src)
-    default: // source-over
-        // SourceOver: Show source over destination
-        blended = src
-    }
+	// Perform blending based on the blend mode
+	switch d.blend_mode {
+	case "difference":
+		blended = blend.Difference(dst, src)
+	case "multiply":
+		blended = blend.Multiply(dst, src)
+	case "destination-in":
+		// DestinationIn:  Show destination only where source exists
+		blended = destinationInBlend(dst, src)
+	default: // source-over
+		// SourceOver: Show source over destination
+		blended = src
+	}
 
 	// Draw the image with opacity onto the main canvas
 	draw.Draw(dst, dst.Bounds(), blended, image.Point{0, 0}, draw.Over)
+	// canvas.DrawImage(blended, 0, 0)
 }
 
 func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
-    // Define the custom blend function for DestinationIn
-    destinationInFunc := func(fg fcolor.RGBAF64, bg fcolor.RGBAF64) fcolor.RGBAF64 {
-        // If the source (foreground) pixel is opaque, return the destination (background) pixel;
-        // otherwise, return transparent.
-        if fg.A > 0 {
-            return bg
-        }
-        return fcolor.RGBAF64{R: 0, G: 0, B: 0, A: 0}
-    }
+	// Define the custom blend function for DestinationIn
+	destinationInFunc := func(fg fcolor.RGBAF64, bg fcolor.RGBAF64) fcolor.RGBAF64 {
+		// If the source (foreground) pixel is opaque, return the destination (background) pixel;
+		// otherwise, return transparent.
+		if fg.A > 0 {
+			return bg
+		}
+		return fcolor.RGBAF64{R: 0, G: 0, B: 0, A: 0}
+	}
 
-    // Use the blend.Blend function with our custom blend function
-    return blend.Blend(dst, src, destinationInFunc)
+	// Use the blend.Blend function with our custom blend function
+	return blend.Blend(dst, src, destinationInFunc)
 }
 
 func abs(a int) int {
