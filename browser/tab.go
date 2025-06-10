@@ -35,9 +35,11 @@ type Tab struct {
 	js                    *JSContext
 	allowed_origins       []string
 	TaskRunner            *TaskRunner
-	needs_render          bool
 	browser               *Browser
 	scroll_changed_in_tab bool
+	needs_style           bool
+	needs_layout          bool
+	needs_paint           bool
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -45,7 +47,6 @@ func NewTab(browser *Browser, tab_height float64) *Tab {
 		scroll:                0,
 		tab_height:            tab_height,
 		history:               make([]*u.URL, 0),
-		needs_render:          false,
 		browser:               browser,
 		scroll_changed_in_tab: false,
 	}
@@ -106,7 +107,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 				t.browser.measure.Time("eval_" + script)
 				t.js.Run(script, code)
 				t.browser.measure.Stop("eval_" + script)
-				fmt.Println("Eval " + script + " took:", time.Since(start))
+				fmt.Println("Eval "+script+" took:", time.Since(start))
 			}, script, code)
 			t.TaskRunner.ScheduleTask(task)
 		}
@@ -238,28 +239,37 @@ func (t *Tab) go_back() {
 }
 
 func (t *Tab) Render() {
-	if !t.needs_render {
-		return
-	}
 	t.browser.measure.Time("render")
 
-	start := time.Now()
-	sort.SliceStable(t.rules, func(i, j int) bool {
-		return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
-	})
-	css.Style(t.Nodes, t.rules)
-	fmt.Println("Styling took:", time.Since(start))
+	if t.needs_style {
+		t.needs_layout = true
+		t.needs_style = false
+		start := time.Now()
+		sort.SliceStable(t.rules, func(i, j int) bool {
+			return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
+		})
+		Style(t.Nodes, t.rules, t)
+		fmt.Println("Styling took:", time.Since(start))
+	}
 
-	start = time.Now()
-	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
-	t.document.Layout.Layout()
-	// layout.PrintTree(t.document, 0)
-	t.display_list = make([]layout.Command, 0)
-	layout.PaintTree(t.document, &t.display_list)
-	// layout.PrintCommands(b.display_list)
-	fmt.Println("Layout took:", time.Since(start))
+	if t.needs_layout {
+		t.needs_paint = true
+		t.needs_layout = false
+		start := time.Now()
+		t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
+		t.document.Layout.Layout()
+		// layout.PrintTree(t.document, 0)
+		fmt.Println("Layout took:", time.Since(start))
+	}
 
-	t.needs_render = false
+	if t.needs_paint {
+		t.needs_paint = false
+		start := time.Now()
+		t.display_list = make([]layout.Command, 0)
+		layout.PaintTree(t.document, &t.display_list)
+		// layout.PrintCommands(b.display_list)
+		fmt.Println("Paint took:", time.Since(start))
+	}
 
 	clamped_scroll := t.clamp_scroll(t.scroll)
 	if clamped_scroll != t.scroll {
@@ -284,6 +294,16 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 	t.js.ctx.PevalString("__runRAFHandlers()")
 	t.browser.measure.Stop("eval_run_raf_handlers")
 
+	for _, node := range html.TreeToList(t.Nodes) {
+		for property_name, animation := range node.Animations {
+			value := animation.Animate()
+			if value != "" {
+				node.Style[property_name] = value
+				t.SetNeedsLayout()
+			}
+		}
+	}
+
 	t.Render()
 
 	scroll = nil
@@ -299,7 +319,12 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 }
 
 func (t *Tab) SetNeedsRender() {
-	t.needs_render = true
+	t.needs_style = true
+	t.browser.SetNeedsAnimationFrame(t)
+}
+
+func (t *Tab) SetNeedsLayout() {
+	t.needs_layout = true
 	t.browser.SetNeedsAnimationFrame(t)
 }
 

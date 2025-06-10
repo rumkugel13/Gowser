@@ -6,10 +6,11 @@ import (
 )
 
 type Node struct {
-	Token    Token
-	Children []*Node
-	Parent   *Node
-	Style    map[string]string
+	Token      Token
+	Children   []*Node
+	Parent     *Node
+	Style      map[string]string
+	Animations map[string]Animation
 }
 
 func NewNode(token Token, parent *Node) *Node {
@@ -18,6 +19,7 @@ func NewNode(token Token, parent *Node) *Node {
 		Children: []*Node{},
 		Parent:   parent,
 		Style:    make(map[string]string),
+		Animations: make(map[string]Animation),
 	}
 }
 

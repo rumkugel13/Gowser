@@ -1,6 +1,7 @@
-package css
+package browser
 
 import (
+	"gowser/css"
 	"gowser/html"
 	"maps"
 	"strconv"
@@ -16,7 +17,8 @@ var (
 	}
 )
 
-func Style(node *html.Node, rules []Rule) {
+func Style(node *html.Node, rules []css.Rule, tab *Tab) {
+	old_style := node.Style
 	node.Style = make(map[string]string)
 	for property, default_value := range INHERITED_PROPERTIES {
 		if node.Parent != nil {
@@ -37,8 +39,8 @@ func Style(node *html.Node, rules []Rule) {
 
 	if element, ok := node.Token.(html.ElementToken); ok {
 		if style, exists := element.Attributes["style"]; exists {
-			parser := NewCSSParser(style)
-			pairs := parser.body()
+			parser := css.NewCSSParser(style)
+			pairs := parser.Body()
 			maps.Copy(node.Style, pairs)
 		}
 	}
@@ -63,7 +65,45 @@ func Style(node *html.Node, rules []Rule) {
 		node.Style["font-size"] = strconv.FormatFloat(node_pct*parent_px, 'f', -1, 32) + "px"
 	}
 
-	for _, child := range node.Children {
-		Style(child, rules)
+	if len(old_style) != 0 {
+		transitions := diff_styles(old_style, node.Style)
+		for property, transition := range transitions {
+			if property == "opacity" {
+				tab.SetNeedsRender()
+				oldfVal, _ := strconv.ParseFloat(transition.old_value, 32)
+				newfVal, _ := strconv.ParseFloat(transition.new_value, 32)
+
+				animation := html.NewNumericAnimation(oldfVal, newfVal, transition.num_frames)
+				node.Animations[property] = animation
+				node.Style[property] = animation.Animate()
+			}
+		}
 	}
+
+	for _, child := range node.Children {
+		Style(child, rules, tab)
+	}
+}
+
+type Transition struct {
+	old_value, new_value string
+	num_frames           int
+}
+
+func diff_styles(old_style, new_style map[string]string) map[string]Transition {
+	transitions := make(map[string]Transition)
+	for property, num_frames := range css.ParseTransition(new_style["transition"]) {
+		if _, ok := old_style[property]; !ok {
+			continue
+		}
+		if _, ok := new_style[property]; !ok {
+			continue
+		}
+		old_value, new_value := old_style[property], new_style[property]
+		if old_value == new_value {
+			continue
+		}
+		transitions[property] = Transition{old_value, new_value, num_frames}
+	}
+	return transitions
 }

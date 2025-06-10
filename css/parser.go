@@ -8,6 +8,10 @@ import (
 	"unicode"
 )
 
+const (
+	REFRESH_RATE_SEC = 0.033
+)
+
 type CSSParser struct {
 	style string
 	i     int
@@ -48,20 +52,20 @@ func (p *CSSParser) literal(literal rune) {
 	p.i++
 }
 
-func (p *CSSParser) pair() (string, string) {
+func (p *CSSParser) pair(until ...rune) (string, string) {
 	prop := p.word()
 	p.whitespace()
 	p.literal(':')
 	p.whitespace()
-	val := p.word()
-	return strings.ToLower(prop), val
+	val := p.until_chars(until...)
+	return strings.ToLower(prop), strings.TrimSpace(val)
 }
 
-func (p *CSSParser) body() map[string]string {
+func (p *CSSParser) Body() map[string]string {
 	pairs := make(map[string]string)
 	for p.i < len(p.style) && p.style[p.i] != '}' {
 		err := try.Try(func() {
-			prop, val := p.pair()
+			prop, val := p.pair(';', '}')
 			pairs[strings.ToLower(prop)] = val
 			p.whitespace()
 			p.literal(';')
@@ -91,6 +95,32 @@ func (p *CSSParser) ignore_until(chars ...rune) rune {
 	return 0
 }
 
+func (p *CSSParser) until_chars(chars ...rune) string {
+	start := p.i
+	for p.i < len(p.style) && !slices.Contains(chars, rune(p.style[p.i])) {
+		p.i++
+	}
+	return p.style[start:p.i]
+}
+
+func ParseTransition(value string) map[string]int {
+	properties := make(map[string]int)
+	if value == "" {
+		return properties
+	}
+
+	for _, item := range strings.Split(value, ",") {
+		split := strings.Fields(item)
+		property, duration := split[0], split[1]
+		fVal, err := strconv.ParseFloat(duration[:len(duration)-1], 32)
+		if err == nil {
+			frames := int(fVal / REFRESH_RATE_SEC)
+			properties[property] = frames
+		}
+	}
+	return properties
+}
+
 func (p *CSSParser) Selector() Selector {
 	var out Selector = NewTagSelector(strings.ToLower(p.word()))
 	p.whitespace()
@@ -111,7 +141,7 @@ func (p *CSSParser) Parse() []Rule {
 			selector := p.Selector()
 			p.literal('{')
 			p.whitespace()
-			body := p.body()
+			body := p.Body()
 			p.literal('}')
 			rules = append(rules, *NewRule(selector, body))
 		})
