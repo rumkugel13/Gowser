@@ -66,6 +66,15 @@ func NewJSContext(tab *Tab) *JSContext {
 	if err != nil {
 		fmt.Println(err)
 	}
+	_, err = js.ctx.PushGlobalGoFunction("_style_set", func(ctx *duk.Context) int {
+		handle := ctx.GetInt(0)
+		s := ctx.GetString(1)
+		js.style_set(handle, s)
+		return 0
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
 	_, err = js.ctx.PushGlobalGoFunction("_XMLHttpRequest_send", func(ctx *duk.Context) int {
 		method := ctx.GetString(0) // 0 is bottom of stack [0, .., -1]
 		url := ctx.GetString(-4)   // -2 is second to top, in this case [0, -2, -1]
@@ -88,7 +97,7 @@ func NewJSContext(tab *Tab) *JSContext {
 	if err != nil {
 		fmt.Println(err)
 	}
-	_,err = js.ctx.PushGlobalGoFunction("_requestAnimationFrame", func(ctx *duk.Context) int {
+	_, err = js.ctx.PushGlobalGoFunction("_requestAnimationFrame", func(ctx *duk.Context) int {
 		js.requestAnimationFrame()
 		return 0
 	})
@@ -189,6 +198,12 @@ func (j *JSContext) innerHTML_set(handle int, s string) {
 	for _, child := range elt.Children {
 		child.Parent = elt
 	}
+	j.tab.SetNeedsRender()
+}
+
+func (j *JSContext) style_set(handle int, s string) {
+	elt := j.handle_to_node[handle]
+	elt.Token.(html.ElementToken).Attributes["style"] = s
 	j.tab.SetNeedsRender()
 }
 

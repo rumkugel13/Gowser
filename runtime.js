@@ -34,7 +34,13 @@ Node.prototype.addEventListener = function (type, listener) {
 
 Object.defineProperty(Node.prototype, 'innerHTML', {
     set: function (s) {
-        _innerHTML_set(this.handle, s.toString())
+        _innerHTML_set(this.handle, s.toString());
+    }
+});
+
+Object.defineProperty(Node.prototype, 'style', {
+    set: function(s) {
+        _style_set(this.handle, s.toString());
     }
 });
 
