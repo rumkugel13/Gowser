@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+	"gowser/trace"
 
 	"github.com/fogleman/gg"
 	"github.com/veandco/go-sdl2/sdl"
@@ -54,7 +55,7 @@ type Browser struct {
 	animation_timer                 *time.Timer
 	needs_composite_raster_and_draw bool
 	needs_animation_frame           bool
-	measure                         *MeasureTime
+	measure                         *trace.MeasureTime
 	lock                            *sync.Mutex
 	active_tab_url                  *url.URL
 	active_tab_scroll               float64
@@ -71,7 +72,7 @@ func NewBrowser() *Browser {
 		ActiveTab:                       nil,
 		needs_composite_raster_and_draw: false,
 		needs_animation_frame:           false,
-		measure:                         NewMeasureTime(),
+		measure:                         trace.NewMeasureTime(),
 		lock:                            &sync.Mutex{},
 	}
 
