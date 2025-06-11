@@ -184,7 +184,7 @@ func (l *BlockLayout) layout_mode() string {
 	}
 }
 
-func (l *BlockLayout) recurse(node *html.Node) {
+func (l *BlockLayout) recurse(node *html.HtmlNode) {
 	if text, ok := node.Token.(html.TextToken); ok {
 		words := strings.Fields(text.Text)
 		for _, word := range words {
@@ -202,7 +202,7 @@ func (l *BlockLayout) recurse(node *html.Node) {
 	}
 }
 
-func (l *BlockLayout) word(node *html.Node, word string) {
+func (l *BlockLayout) word(node *html.HtmlNode, word string) {
 	weight := node.Style["font-weight"]
 	style := node.Style["font-style"]
 	if style == "normal" {
@@ -230,7 +230,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	l.cursor_x += width + fnt.Measure(font, " ")
 }
 
-func (l *BlockLayout) input(node *html.Node) {
+func (l *BlockLayout) input(node *html.HtmlNode) {
 	w := INPUT_WIDTH_PX
 	if l.cursor_x+w > l.wrap.Width {
 		l.new_line()
@@ -558,7 +558,7 @@ func TreeToList(tree *LayoutNode) []*LayoutNode {
 	return list
 }
 
-func paint_visual_effects(node *html.Node, cmds []Command, rect *rect.Rect) []Command {
+func paint_visual_effects(node *html.HtmlNode, cmds []Command, rect *rect.Rect) []Command {
 	opacity := 1.0
 	if val, ok := node.Style["opacity"]; ok {
 		fval, err := strconv.ParseFloat(val, 32)

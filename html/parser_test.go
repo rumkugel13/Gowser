@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func ValidateParentChildRelationships(node *Node) []string {
+func ValidateParentChildRelationships(node *HtmlNode) []string {
 	issues := []string{}
 
 	// Check this node's children

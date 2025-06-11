@@ -17,7 +17,7 @@ var (
 	}
 )
 
-func Style(node *html.Node, rules []css.Rule, tab *Tab) {
+func Style(node *html.HtmlNode, rules []css.Rule, tab *Tab) {
 	old_style := node.Style
 	node.Style = make(map[string]string)
 	for property, default_value := range INHERITED_PROPERTIES {

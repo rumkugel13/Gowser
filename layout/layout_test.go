@@ -7,12 +7,12 @@ import (
 
 func TestBasicLayout(t *testing.T) {
 	// Create a simple HTML structure
-	htmlNode := &html.Node{
+	htmlNode := &html.HtmlNode{
 		Token: html.ElementToken{Tag: "html"},
-		Children: []*html.Node{
+		Children: []*html.HtmlNode{
 			{
 				Token: html.ElementToken{Tag: "body"},
-				Children: []*html.Node{
+				Children: []*html.HtmlNode{
 					{
 						Token: html.TextToken{Text: "Hello World"},
 						Style: map[string]string{

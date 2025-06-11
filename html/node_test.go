@@ -7,7 +7,7 @@ import (
 
 func TestNodeReferenceConsistency(t *testing.T) {
 	// Create a simple node structure
-	root := &Node{
+	root := &HtmlNode{
 		Token: ElementToken{Tag: "div"},
 	}
 

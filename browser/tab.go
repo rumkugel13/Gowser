@@ -29,9 +29,9 @@ type Tab struct {
 	url                   *u.URL
 	tab_height            float64
 	history               []*u.URL
-	Nodes                 *html.Node
+	Nodes                 *html.HtmlNode
 	rules                 []css.Rule
-	focus                 *html.Node
+	focus                 *html.HtmlNode
 	js                    *JSContext
 	allowed_origins       []string
 	TaskRunner            *TaskRunner
@@ -138,7 +138,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.SetNeedsRender()
 }
 
-func (t *Tab) scripts(nodes *html.Node) []string {
+func (t *Tab) scripts(nodes *html.HtmlNode) []string {
 	flatNodes := html.TreeToList(nodes)
 	links := []string{}
 	for _, node := range flatNodes {
@@ -151,7 +151,7 @@ func (t *Tab) scripts(nodes *html.Node) []string {
 	return links
 }
 
-func (t *Tab) links(nodes *html.Node) []string {
+func (t *Tab) links(nodes *html.HtmlNode) []string {
 	flatNodes := html.TreeToList(nodes)
 	links := []string{}
 	for _, node := range flatNodes {
@@ -338,7 +338,7 @@ func (t *Tab) keypress(char rune) {
 	}
 }
 
-func (t *Tab) submit_form(elt *html.Node) {
+func (t *Tab) submit_form(elt *html.HtmlNode) {
 	if t.js.DispatchEvent("submit", elt) {
 		return
 	}

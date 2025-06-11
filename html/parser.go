@@ -16,17 +16,17 @@ var (
 
 type HTMLParser struct {
 	body       string
-	unfinished []*Node
+	unfinished []*HtmlNode
 }
 
 func NewHTMLParser(body string) *HTMLParser {
 	return &HTMLParser{
 		body:       body,
-		unfinished: []*Node{},
+		unfinished: []*HtmlNode{},
 	}
 }
 
-func (p *HTMLParser) Parse() *Node {
+func (p *HTMLParser) Parse() *HtmlNode {
 	buffer := strings.Builder{}
 	inTag := false
 	for _, char := range p.body {
@@ -80,7 +80,7 @@ func (p *HTMLParser) add_tag(tag string) {
 		node := NewNode(NewElementToken(tag, attributes), parent)
 		parent.Children = append(parent.Children, node)
 	} else {
-		var parent *Node
+		var parent *HtmlNode
 		if len(p.unfinished) == 0 {
 			parent = nil
 		} else {
@@ -91,7 +91,7 @@ func (p *HTMLParser) add_tag(tag string) {
 	}
 }
 
-func (p *HTMLParser) finish() *Node {
+func (p *HTMLParser) finish() *HtmlNode {
 	if len(p.unfinished) == 0 {
 		p.implicit_tags("")
 	}

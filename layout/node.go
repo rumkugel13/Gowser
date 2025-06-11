@@ -3,14 +3,14 @@ package layout
 import "gowser/html"
 
 type LayoutNode struct {
-	Node                *html.Node
+	Node                *html.HtmlNode
 	Layout              Layout
 	parent              *LayoutNode
 	children            []*LayoutNode
 	X, Y, Width, Height float64
 }
 
-func NewLayoutNode(layout Layout, htmlNode *html.Node, parent *LayoutNode) *LayoutNode {
+func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode) *LayoutNode {
 	node := &LayoutNode{
 		Node:     htmlNode,
 		Layout:   layout,

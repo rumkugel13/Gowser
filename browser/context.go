@@ -29,8 +29,8 @@ func init() {
 type JSContext struct {
 	ctx            *duk.Context
 	tab            *Tab
-	node_to_handle map[*html.Node]int
-	handle_to_node map[int]*html.Node
+	node_to_handle map[*html.HtmlNode]int
+	handle_to_node map[int]*html.HtmlNode
 	Discarded      bool
 }
 
@@ -38,8 +38,8 @@ func NewJSContext(tab *Tab) *JSContext {
 	js := &JSContext{
 		ctx:            duk.New(),
 		tab:            tab,
-		node_to_handle: make(map[*html.Node]int),
-		handle_to_node: make(map[int]*html.Node),
+		node_to_handle: make(map[*html.HtmlNode]int),
+		handle_to_node: make(map[int]*html.HtmlNode),
 		Discarded:      false,
 	}
 	js.ctx.PushGlobalGoFunction("_log", log)
@@ -134,7 +134,7 @@ func (j *JSContext) Run(script, code string) (string, error) {
 	return val, nil
 }
 
-func (j *JSContext) DispatchEvent(eventType string, elt *html.Node) bool {
+func (j *JSContext) DispatchEvent(eventType string, elt *html.HtmlNode) bool {
 	handle := -1
 	if val, ok := j.node_to_handle[elt]; ok {
 		handle = val
@@ -171,9 +171,9 @@ func log(ctx *duk.Context) int {
 	return 0
 }
 
-func (j *JSContext) querySelectorAll(selector_text string) []*html.Node {
+func (j *JSContext) querySelectorAll(selector_text string) []*html.HtmlNode {
 	selector := css.NewCSSParser(selector_text).Selector()
-	var nodes []*html.Node
+	var nodes []*html.HtmlNode
 	for _, node := range html.TreeToList(j.tab.Nodes) {
 		if selector.Matches(node) {
 			nodes = append(nodes, node)
@@ -182,7 +182,7 @@ func (j *JSContext) querySelectorAll(selector_text string) []*html.Node {
 	return nodes
 }
 
-func (j *JSContext) get_handle(elt *html.Node) int {
+func (j *JSContext) get_handle(elt *html.HtmlNode) int {
 	var handle int
 	if node, ok := j.node_to_handle[elt]; !ok {
 		handle = len(j.node_to_handle)
