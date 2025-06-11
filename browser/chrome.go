@@ -2,6 +2,7 @@ package browser
 
 import (
 	"fmt"
+	fnt "gowser/font"
 	"gowser/layout"
 	"gowser/rect"
 	"gowser/task"
@@ -29,19 +30,19 @@ type Chrome struct {
 
 func NewChrome(browser *Browser) *Chrome {
 	chrome := &Chrome{browser: browser, address_bar: ""}
-	chrome.font = layout.GetFont(20, "normal", "roman")
-	chrome.font_height = layout.Linespace(chrome.font)
+	chrome.font = fnt.GetFont(20, "normal", "roman")
+	chrome.font_height = fnt.Linespace(chrome.font)
 
 	chrome.padding = 5
 	chrome.tabbar_top = 0
 	chrome.tabbar_bottom = chrome.font_height + 2*chrome.padding
-	plus_width := layout.Measure(chrome.font, "+") + 2*chrome.padding
+	plus_width := fnt.Measure(chrome.font, "+") + 2*chrome.padding
 	chrome.newtab_rect = rect.NewRect(chrome.padding, chrome.padding, chrome.padding+plus_width, chrome.padding+chrome.font_height)
 
 	chrome.urlbar_top = chrome.tabbar_bottom
 	chrome.urlbar_bottom = chrome.urlbar_top + chrome.font_height + 2*chrome.padding
 
-	back_width := layout.Measure(chrome.font, "<") + 2*chrome.padding
+	back_width := fnt.Measure(chrome.font, "<") + 2*chrome.padding
 	chrome.back_rect = rect.NewRect(
 		chrome.padding,
 		chrome.urlbar_top+chrome.padding,
@@ -61,7 +62,7 @@ func NewChrome(browser *Browser) *Chrome {
 
 func (c *Chrome) tab_rect(i int) *rect.Rect {
 	tabs_start := c.newtab_rect.Right + c.padding
-	tab_width := layout.Measure(c.font, "Tab X") + 2*c.padding
+	tab_width := fnt.Measure(c.font, "Tab X") + 2*c.padding
 	return rect.NewRect(
 		tabs_start+tab_width*float64(i), c.tabbar_top,
 		tabs_start+tab_width*float64(i+1), c.tabbar_bottom,
@@ -106,7 +107,7 @@ func (c *Chrome) paint() []layout.Command {
 			c.address_rect.Top,
 			c.address_bar, c.font, "black",
 		))
-		w := layout.Measure(c.font, c.address_bar)
+		w := fnt.Measure(c.font, c.address_bar)
 		cmds = append(cmds, layout.NewDrawLine(
 			c.address_rect.Left+c.padding+w,
 			c.address_rect.Top,

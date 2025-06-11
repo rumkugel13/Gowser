@@ -2,11 +2,12 @@ package layout
 
 import (
 	"fmt"
+	fnt "gowser/font"
 	"gowser/html"
+	"gowser/rect"
 	"slices"
 	"strconv"
 	"strings"
-	"gowser/rect"
 
 	"golang.org/x/image/font"
 )
@@ -213,8 +214,8 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	}
 	size := fSize * 0.75
 
-	font := GetFont(size, weight, style)
-	width := Measure(font, word)
+	font := fnt.GetFont(size, weight, style)
+	width := fnt.Measure(font, word)
 	if l.cursor_x+width > l.wrap.Width {
 		l.new_line()
 	}
@@ -226,7 +227,7 @@ func (l *BlockLayout) word(node *html.Node, word string) {
 	}
 	text := NewLayoutNode(NewTextLayout(word, previous_word), node, line)
 	line.children = append(line.children, text)
-	l.cursor_x += width + Measure(font, " ")
+	l.cursor_x += width + fnt.Measure(font, " ")
 }
 
 func (l *BlockLayout) input(node *html.Node) {
@@ -252,8 +253,8 @@ func (l *BlockLayout) input(node *html.Node) {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	font := GetFont(size, weight, style)
-	l.cursor_x += w + Measure(font, " ")
+	font := fnt.GetFont(size, weight, style)
+	l.cursor_x += w + fnt.Measure(font, " ")
 }
 
 func (l *BlockLayout) new_line() {
@@ -299,9 +300,9 @@ func (l *LineLayout) Layout() {
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			maxAscent = max(maxAscent, Ascent(l.font))
+			maxAscent = max(maxAscent, fnt.Ascent(l.font))
 		case *InputLayout:
-			maxAscent = max(maxAscent, Ascent(l.font))
+			maxAscent = max(maxAscent, fnt.Ascent(l.font))
 		}
 	}
 
@@ -309,9 +310,9 @@ func (l *LineLayout) Layout() {
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			item.Y = baseline - Ascent(l.font)
+			item.Y = baseline - fnt.Ascent(l.font)
 		case *InputLayout:
-			item.Y = baseline - Ascent(l.font)
+			item.Y = baseline - fnt.Ascent(l.font)
 		}
 	}
 
@@ -319,9 +320,9 @@ func (l *LineLayout) Layout() {
 	for _, item := range l.wrap.children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
-			maxDescent = max(maxDescent, Descent(l.font))
+			maxDescent = max(maxDescent, fnt.Descent(l.font))
 		case *InputLayout:
-			maxDescent = max(maxDescent, Descent(l.font))
+			maxDescent = max(maxDescent, fnt.Descent(l.font))
 		}
 	}
 
@@ -373,17 +374,17 @@ func (l *TextLayout) Layout() {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	l.font = GetFont(size, weight, style)
+	l.font = fnt.GetFont(size, weight, style)
 
-	l.wrap.Width = Measure(l.font, l.word)
+	l.wrap.Width = fnt.Measure(l.font, l.word)
 
 	if l.previous != nil {
 		switch t := l.previous.Layout.(type) {
 		case *TextLayout:
-			space := Measure(t.font, " ")
+			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		case *InputLayout:
-			space := Measure(t.font, " ")
+			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		default:
 			l.wrap.X = l.wrap.parent.X
@@ -392,7 +393,7 @@ func (l *TextLayout) Layout() {
 		l.wrap.X = l.wrap.parent.X
 	}
 
-	l.wrap.Height = Linespace(l.font)
+	l.wrap.Height = fnt.Linespace(l.font)
 }
 
 func (l *TextLayout) String() string {
@@ -439,17 +440,17 @@ func (l *InputLayout) Layout() {
 		fSize = 16 // Default font size if parsing fails
 	}
 	size := fSize * 0.75
-	l.font = GetFont(size, weight, style)
+	l.font = fnt.GetFont(size, weight, style)
 
 	l.wrap.Width = INPUT_WIDTH_PX
 
 	if l.previous != nil {
 		switch t := l.previous.Layout.(type) {
 		case *TextLayout:
-			space := Measure(t.font, " ")
+			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		case *InputLayout:
-			space := Measure(t.font, " ")
+			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		default:
 			l.wrap.X = l.wrap.parent.X
@@ -458,7 +459,7 @@ func (l *InputLayout) Layout() {
 		l.wrap.X = l.wrap.parent.X
 	}
 
-	l.wrap.Height = Linespace(l.font)
+	l.wrap.Height = fnt.Linespace(l.font)
 }
 
 func (l *InputLayout) String() string {
@@ -503,7 +504,7 @@ func (l *InputLayout) Paint() []Command {
 	cmds = append(cmds, NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
 
 	if l.wrap.Node.Token.(html.ElementToken).IsFocused {
-		cx := l.wrap.X + Measure(l.font, text)
+		cx := l.wrap.X + fnt.Measure(l.font, text)
 		cmds = append(cmds, NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
 	}
 

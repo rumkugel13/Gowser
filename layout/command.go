@@ -5,9 +5,11 @@ import (
 	"gowser/display"
 	"image"
 	"image/color"
+
 	// "image/draw"
-	"strings"
+	fnt "gowser/font"
 	"gowser/rect"
+	"strings"
 
 	"github.com/anthonynsimon/bild/adjust"
 	"github.com/anthonynsimon/bild/blend"
@@ -55,7 +57,7 @@ type DrawText struct {
 }
 
 func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
-	rect := rect.NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font))
+	rect := rect.NewRect(x1, y1, x1+fnt.Measure(font, text), y1+fnt.Ascent(font)+fnt.Descent(font))
 	return &DrawText{
 		PaintCommand: PaintCommand{rect: rect},
 		text:         text,
