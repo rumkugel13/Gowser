@@ -1,4 +1,4 @@
-package display
+package color
 
 import (
 	col "image/color"

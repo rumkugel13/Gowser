@@ -2,7 +2,7 @@ package layout
 
 import (
 	"fmt"
-	"gowser/display"
+	col "gowser/color"
 	"image"
 	"image/color"
 
@@ -67,7 +67,7 @@ func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *Dra
 }
 
 func (d *DrawText) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
+	canvas.SetColor(col.ParseColor(d.color))
 	canvas.SetFontFace(d.font)
 	canvas.DrawStringAnchored(d.text, d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, 0, 1)
 }
@@ -91,7 +91,7 @@ func NewDrawRRect(rect *rect.Rect, radius float64, color string) *DrawRRect {
 }
 
 func (d *DrawRRect) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
+	canvas.SetColor(col.ParseColor(d.color))
 	canvas.DrawRoundedRectangle(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right-d.PaintCommand.rect.Left, d.PaintCommand.rect.Bottom-d.PaintCommand.rect.Top, d.radius)
 	canvas.Fill()
 }
@@ -115,7 +115,7 @@ func NewDrawOutline(rect *rect.Rect, color string, thickness float64) *DrawOutli
 }
 
 func (d *DrawOutline) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
+	canvas.SetColor(col.ParseColor(d.color))
 	canvas.DrawRectangle(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right-d.PaintCommand.rect.Left, d.PaintCommand.rect.Bottom-d.PaintCommand.rect.Top)
 	canvas.SetLineWidth(d.thickness)
 	canvas.Stroke()
@@ -140,7 +140,7 @@ func NewDrawLine(x1, y1, x2, y2 float64, color string, thickness float64) *DrawL
 }
 
 func (d *DrawLine) Execute(canvas *gg.Context) {
-	canvas.SetColor(display.ParseColor(d.color))
+	canvas.SetColor(col.ParseColor(d.color))
 	canvas.SetLineWidth(d.thickness)
 	canvas.DrawLine(d.PaintCommand.rect.Left, d.PaintCommand.rect.Top, d.PaintCommand.rect.Right, d.PaintCommand.rect.Bottom)
 	canvas.Stroke()
