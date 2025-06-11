@@ -2,6 +2,7 @@ package layout
 
 import (
 	"image/color"
+	"gowser/rect"
 
 	"github.com/fogleman/gg"
 )
@@ -41,8 +42,8 @@ func (c *CompositedLayer) Raster() {
 	canvas.Pop()
 }
 
-func (c *CompositedLayer) composited_bounds() *Rect {
-	rect := NewRect(0, 0, 0, 0)
+func (c *CompositedLayer) composited_bounds() *rect.Rect {
+	rect := rect.NewRect(0, 0, 0, 0)
 	for _, item := range c.DisplayItems {
 		rect = rect.Union(item.Rect())
 	}

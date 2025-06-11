@@ -7,6 +7,7 @@ import (
 	"image/color"
 	// "image/draw"
 	"strings"
+	"gowser/rect"
 
 	"github.com/anthonynsimon/bild/adjust"
 	"github.com/anthonynsimon/bild/blend"
@@ -17,7 +18,7 @@ import (
 
 type Command interface {
 	Execute(*gg.Context)
-	Rect() *Rect
+	Rect() *rect.Rect
 	String() string
 	Children() *[]Command
 	SetParent(Command)
@@ -25,12 +26,12 @@ type Command interface {
 }
 
 type PaintCommand struct {
-	rect     *Rect
+	rect     *rect.Rect
 	children []Command
 	parent   Command
 }
 
-func (p *PaintCommand) Rect() *Rect {
+func (p *PaintCommand) Rect() *rect.Rect {
 	return p.rect
 }
 
@@ -54,7 +55,7 @@ type DrawText struct {
 }
 
 func NewDrawText(x1, y1 float64, text string, font font.Face, color string) *DrawText {
-	rect := NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font))
+	rect := rect.NewRect(x1, y1, x1+Measure(font, text), y1+Ascent(font)+Descent(font))
 	return &DrawText{
 		PaintCommand: PaintCommand{rect: rect},
 		text:         text,
@@ -79,7 +80,7 @@ type DrawRRect struct {
 	color  string
 }
 
-func NewDrawRRect(rect *Rect, radius float64, color string) *DrawRRect {
+func NewDrawRRect(rect *rect.Rect, radius float64, color string) *DrawRRect {
 	return &DrawRRect{
 		PaintCommand: PaintCommand{rect: rect},
 		radius:       radius,
@@ -103,7 +104,7 @@ type DrawOutline struct {
 	thickness float64
 }
 
-func NewDrawOutline(rect *Rect, color string, thickness float64) *DrawOutline {
+func NewDrawOutline(rect *rect.Rect, color string, thickness float64) *DrawOutline {
 	return &DrawOutline{
 		PaintCommand: PaintCommand{rect: rect},
 		color:        color,
@@ -130,7 +131,7 @@ type DrawLine struct {
 
 func NewDrawLine(x1, y1, x2, y2 float64, color string, thickness float64) *DrawLine {
 	return &DrawLine{
-		PaintCommand: PaintCommand{rect: NewRect(x1, y1, x2, y2)},
+		PaintCommand: PaintCommand{rect: rect.NewRect(x1, y1, x2, y2)},
 		color:        color,
 		thickness:    thickness,
 	}
@@ -198,12 +199,12 @@ type VisualEffectCommand interface {
 }
 
 type VisualEffect struct {
-	rect     *Rect
+	rect     *rect.Rect
 	children []Command
 	parent   Command
 }
 
-func NewVisualEffect(rect *Rect, children []Command) *VisualEffect {
+func NewVisualEffect(rect *rect.Rect, children []Command) *VisualEffect {
 	for _, child := range children {
 		rect = rect.Union(child.Rect())
 	}
@@ -217,7 +218,7 @@ func (p *VisualEffect) Children() *[]Command {
 	return &p.children
 }
 
-func (p *VisualEffect) Rect() *Rect {
+func (p *VisualEffect) Rect() *rect.Rect {
 	return p.rect
 }
 
@@ -245,7 +246,7 @@ func (d *DrawBlend) GetParent() Command {
 	return d.PaintCommand.GetParent()
 }
 
-func (d *DrawBlend) Rect() *Rect {
+func (d *DrawBlend) Rect() *rect.Rect {
 	return d.PaintCommand.Rect()
 }
 
@@ -254,13 +255,13 @@ func (d *DrawBlend) SetParent(command Command) {
 }
 
 func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawBlend {
-	rect := &Rect{}
+	r := &rect.Rect{}
 	for _, child := range children {
-		rect = rect.Union(child.Rect())
+		r = r.Union(child.Rect())
 	}
 	return &DrawBlend{
-		PaintCommand: PaintCommand{rect: rect, children: children},
-		VisualEffect: NewVisualEffect(&Rect{}, children),
+		PaintCommand: PaintCommand{rect: r, children: children},
+		VisualEffect: NewVisualEffect(&rect.Rect{}, children),
 		opacity:      opacity,
 		blend_mode:   blend_mode,
 		should_save:  blend_mode != "" || opacity < 1.0,
@@ -270,7 +271,7 @@ func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawB
 func (d *DrawBlend) Clone(child Command) *DrawBlend {
 	return &DrawBlend{
 		PaintCommand: d.PaintCommand,
-		VisualEffect: NewVisualEffect(&Rect{}, []Command{child}),
+		VisualEffect: NewVisualEffect(&rect.Rect{}, []Command{child}),
 		opacity:      d.opacity,
 		blend_mode:   d.blend_mode,
 		should_save:  d.should_save,

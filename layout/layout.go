@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"gowser/rect"
 
 	"golang.org/x/image/font"
 )
@@ -265,8 +266,8 @@ func (l *BlockLayout) new_line() {
 	l.wrap.children = append(l.wrap.children, new_line)
 }
 
-func (l *BlockLayout) self_rect() *Rect {
-	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+func (l *BlockLayout) self_rect() *rect.Rect {
+	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
 type LineLayout struct {
@@ -522,8 +523,8 @@ func (d *InputLayout) Wrap(wrap *LayoutNode) {
 	d.wrap = wrap
 }
 
-func (l *InputLayout) self_rect() *Rect {
-	return NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+func (l *InputLayout) self_rect() *rect.Rect {
+	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
 func PaintTree(l *LayoutNode, displayList *[]Command) {
@@ -556,7 +557,7 @@ func TreeToList(tree *LayoutNode) []*LayoutNode {
 	return list
 }
 
-func paint_visual_effects(node *html.Node, cmds []Command, rect *Rect) []Command {
+func paint_visual_effects(node *html.Node, cmds []Command, rect *rect.Rect) []Command {
 	opacity := 1.0
 	if val, ok := node.Style["opacity"]; ok {
 		fval, err := strconv.ParseFloat(val, 32)

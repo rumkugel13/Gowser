@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"gowser/layout"
+	"gowser/rect"
 	"gowser/task"
 	"gowser/url"
 
@@ -16,12 +17,12 @@ type Chrome struct {
 	padding       float64
 	tabbar_top    float64
 	tabbar_bottom float64
-	newtab_rect   *layout.Rect
+	newtab_rect   *rect.Rect
 	bottom        float64
 	urlbar_top    float64
 	urlbar_bottom float64
-	back_rect     *layout.Rect
-	address_rect  *layout.Rect
+	back_rect     *rect.Rect
+	address_rect  *rect.Rect
 	focus         string
 	address_bar   string
 }
@@ -35,19 +36,19 @@ func NewChrome(browser *Browser) *Chrome {
 	chrome.tabbar_top = 0
 	chrome.tabbar_bottom = chrome.font_height + 2*chrome.padding
 	plus_width := layout.Measure(chrome.font, "+") + 2*chrome.padding
-	chrome.newtab_rect = layout.NewRect(chrome.padding, chrome.padding, chrome.padding+plus_width, chrome.padding+chrome.font_height)
+	chrome.newtab_rect = rect.NewRect(chrome.padding, chrome.padding, chrome.padding+plus_width, chrome.padding+chrome.font_height)
 
 	chrome.urlbar_top = chrome.tabbar_bottom
 	chrome.urlbar_bottom = chrome.urlbar_top + chrome.font_height + 2*chrome.padding
 
 	back_width := layout.Measure(chrome.font, "<") + 2*chrome.padding
-	chrome.back_rect = layout.NewRect(
+	chrome.back_rect = rect.NewRect(
 		chrome.padding,
 		chrome.urlbar_top+chrome.padding,
 		chrome.padding+back_width,
 		chrome.urlbar_bottom-chrome.padding,
 	)
-	chrome.address_rect = layout.NewRect(
+	chrome.address_rect = rect.NewRect(
 		chrome.back_rect.Top+chrome.padding,
 		chrome.urlbar_top+chrome.padding,
 		WIDTH-chrome.padding,
@@ -58,10 +59,10 @@ func NewChrome(browser *Browser) *Chrome {
 	return chrome
 }
 
-func (c *Chrome) tab_rect(i int) *layout.Rect {
+func (c *Chrome) tab_rect(i int) *rect.Rect {
 	tabs_start := c.newtab_rect.Right + c.padding
 	tab_width := layout.Measure(c.font, "Tab X") + 2*c.padding
-	return layout.NewRect(
+	return rect.NewRect(
 		tabs_start+tab_width*float64(i), c.tabbar_top,
 		tabs_start+tab_width*float64(i+1), c.tabbar_bottom,
 	)
@@ -70,7 +71,7 @@ func (c *Chrome) tab_rect(i int) *layout.Rect {
 func (c *Chrome) paint() []layout.Command {
 	cmds := make([]layout.Command, 0)
 
-	cmds = append(cmds, layout.NewDrawRRect(layout.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
+	cmds = append(cmds, layout.NewDrawRRect(rect.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
 	cmds = append(cmds, layout.NewDrawLine(0, c.bottom, WIDTH, c.bottom, "black", 1))
 
 	cmds = append(cmds, layout.NewDrawOutline(c.newtab_rect, "black", 1))
