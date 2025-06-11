@@ -1,21 +1,21 @@
-package layout
+package display
 
 import (
-	"image/color"
 	"gowser/rect"
+	"image/color"
 
 	"github.com/fogleman/gg"
 )
 
 type CompositedLayer struct {
-	surface       *gg.Context
+	surface *gg.Context
 	// skia_context not available
 	DisplayItems []Command
 }
 
 func NewCompositedLayer(cmd Command) *CompositedLayer {
 	return &CompositedLayer{
-		surface:       nil,
+		surface:      nil,
 		DisplayItems: []Command{cmd},
 	}
 }

@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"gowser/css"
+	"gowser/display"
 	"gowser/html"
 	"gowser/layout"
 	"gowser/task"
@@ -23,7 +24,7 @@ const (
 )
 
 type Tab struct {
-	display_list          []layout.Command
+	display_list          []display.Command
 	scroll                float64
 	document              *layout.LayoutNode
 	url                   *u.URL
@@ -265,7 +266,7 @@ func (t *Tab) Render() {
 	if t.needs_paint {
 		t.needs_paint = false
 		start := time.Now()
-		t.display_list = make([]layout.Command, 0)
+		t.display_list = make([]display.Command, 0)
 		layout.PaintTree(t.document, &t.display_list)
 		// layout.PrintCommands(b.display_list)
 		fmt.Println("Paint took:", time.Since(start))
@@ -313,7 +314,7 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 
 	document_height := math.Ceil(t.document.Height + 2*layout.VSTEP)
 	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list)
-	t.display_list = make([]layout.Command, 0)
+	t.display_list = make([]display.Command, 0)
 	t.browser.Commit(t, commit_data)
 	t.scroll_changed_in_tab = false
 }

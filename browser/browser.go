@@ -3,8 +3,9 @@ package browser
 import (
 	"fmt"
 	"gowser/css"
-	"gowser/layout"
+	"gowser/display"
 	"gowser/task"
+	"gowser/trace"
 	"gowser/url"
 	"image"
 	"image/color"
@@ -13,7 +14,6 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-	"gowser/trace"
 
 	"github.com/fogleman/gg"
 	"github.com/veandco/go-sdl2/sdl"
@@ -60,9 +60,9 @@ type Browser struct {
 	active_tab_url                  *url.URL
 	active_tab_scroll               float64
 	active_tab_height               float64
-	active_tab_display_list         []layout.Command
-	composited_layers               []*layout.CompositedLayer
-	draw_list                       []layout.Command
+	active_tab_display_list         []display.Command
+	composited_layers               []*display.CompositedLayer
+	draw_list                       []display.Command
 }
 
 func NewBrowser() *Browser {
@@ -385,27 +385,27 @@ func (b *Browser) raster_chrome() {
 
 func (b *Browser) composite() {
 	add_parent_pointers(b.active_tab_display_list, nil)
-	b.composited_layers = make([]*layout.CompositedLayer, 0)
+	b.composited_layers = make([]*display.CompositedLayer, 0)
 
-	var all_commands []layout.Command
+	var all_commands []display.Command
 	for _, cmd := range b.active_tab_display_list {
-		all_commands = append(all_commands, layout.CommandTreeToList(cmd)...)
+		all_commands = append(all_commands, display.CommandTreeToList(cmd)...)
 	}
 
-	var paint_commands []layout.Command
+	var paint_commands []display.Command
 	for _, cmd := range all_commands {
-		if layout.IsPaintCommand(cmd) {
+		if display.IsPaintCommand(cmd) {
 			paint_commands = append(paint_commands, cmd)
 		}
 	}
 
 	for _, cmd := range paint_commands {
-		layer := layout.NewCompositedLayer(cmd)
+		layer := display.NewCompositedLayer(cmd)
 		b.composited_layers = append(b.composited_layers, layer)
 	}
 }
 
-func add_parent_pointers(nodes []layout.Command, parent layout.Command) {
+func add_parent_pointers(nodes []display.Command, parent display.Command) {
 	for _, node := range nodes {
 		node.SetParent(parent)
 		add_parent_pointers(*node.Children(), node)
@@ -413,10 +413,10 @@ func add_parent_pointers(nodes []layout.Command, parent layout.Command) {
 }
 
 func (b *Browser) paint_draw_list() {
-	b.draw_list = make([]layout.Command, 0)
-	new_effects := make(map[layout.Command]layout.Command)
+	b.draw_list = make([]display.Command, 0)
+	new_effects := make(map[display.Command]display.Command)
 	for _, composited_layer := range b.composited_layers {
-		var current_effect layout.Command = layout.NewDrawCompositedLayer(composited_layer)
+		var current_effect display.Command = display.NewDrawCompositedLayer(composited_layer)
 		if len(composited_layer.DisplayItems) == 0 {
 			continue
 		}
@@ -428,7 +428,7 @@ func (b *Browser) paint_draw_list() {
 				*children = append(*children, current_effect)
 				break
 			} else {
-				current_effect = parent.(*layout.DrawBlend).Clone(current_effect)
+				current_effect = parent.(*display.DrawBlend).Clone(current_effect)
 				parent = parent.GetParent()
 			}
 		}

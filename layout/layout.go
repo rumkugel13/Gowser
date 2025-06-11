@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"gowser/display"
 
 	"golang.org/x/image/font"
 )
@@ -31,10 +32,10 @@ var BLOCK_ELEMENTS = []string{
 type Layout interface {
 	Layout()
 	String() string
-	Paint() []Command
+	Paint() []display.Command
 	Wrap(*LayoutNode)
 	ShouldPaint() bool
-	PaintEffects([]Command) []Command
+	PaintEffects([]display.Command) []display.Command
 }
 
 type DocumentLayout struct {
@@ -60,11 +61,11 @@ func (d *DocumentLayout) String() string {
 	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.Wrapper.X, d.Wrapper.Y, d.Wrapper.Width, d.Wrapper.Height)
 }
 
-func (d *DocumentLayout) Paint() []Command {
-	return []Command{}
+func (d *DocumentLayout) Paint() []display.Command {
+	return []display.Command{}
 }
 
-func (d *DocumentLayout) PaintEffects(cmds []Command) []Command {
+func (d *DocumentLayout) PaintEffects(cmds []display.Command) []display.Command {
 	return cmds
 }
 
@@ -129,8 +130,8 @@ func (l *BlockLayout) String() string {
 		l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Token, l.wrap.Node.Style)
 }
 
-func (l *BlockLayout) Paint() []Command {
-	cmds := make([]Command, 0)
+func (l *BlockLayout) Paint() []display.Command {
+	cmds := make([]display.Command, 0)
 
 	bgcolor, ok := l.wrap.Node.Style["background-color"]
 	if !ok {
@@ -145,13 +146,13 @@ func (l *BlockLayout) Paint() []Command {
 		if err != nil {
 			actualRadius = 0 // Default radius size if parsing fails
 		}
-		rect := NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
+		rect := display.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
 }
 
-func (d *BlockLayout) PaintEffects(cmds []Command) []Command {
+func (d *BlockLayout) PaintEffects(cmds []display.Command) []display.Command {
 	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
 	return cmds
 }
@@ -333,11 +334,11 @@ func (l *LineLayout) String() string {
 	return fmt.Sprintf("LineLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
-func (l *LineLayout) Paint() []Command {
-	return []Command{}
+func (l *LineLayout) Paint() []display.Command {
+	return []display.Command{}
 }
 
-func (d *LineLayout) PaintEffects(cmds []Command) []Command {
+func (d *LineLayout) PaintEffects(cmds []display.Command) []display.Command {
 	return cmds
 }
 
@@ -400,12 +401,12 @@ func (l *TextLayout) String() string {
 	return fmt.Sprintf("TextLayout(x=%f, y=%f, width=%f, height=%f, word='%s', style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.word, l.wrap.Node.Style)
 }
 
-func (l *TextLayout) Paint() []Command {
+func (l *TextLayout) Paint() []display.Command {
 	color := l.wrap.Node.Style["color"]
-	return []Command{NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
+	return []display.Command{display.NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
 }
 
-func (d *TextLayout) PaintEffects(cmds []Command) []Command {
+func (d *TextLayout) PaintEffects(cmds []display.Command) []display.Command {
 	return cmds
 }
 
@@ -466,8 +467,8 @@ func (l *InputLayout) String() string {
 	return fmt.Sprintf("InputLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
-func (l *InputLayout) Paint() []Command {
-	cmds := []Command{}
+func (l *InputLayout) Paint() []display.Command {
+	cmds := []display.Command{}
 	bgcolor, ok := l.wrap.Node.Style["background-color"]
 	if !ok {
 		bgcolor = "transparent"
@@ -481,7 +482,7 @@ func (l *InputLayout) Paint() []Command {
 		if err != nil {
 			actualRadius = 0 // Default radius size if parsing fails
 		}
-		rect := NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
+		rect := display.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 
@@ -501,17 +502,17 @@ func (l *InputLayout) Paint() []Command {
 	}
 
 	color := l.wrap.Node.Style["color"]
-	cmds = append(cmds, NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
+	cmds = append(cmds, display.NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
 
 	if l.wrap.Node.Token.(html.ElementToken).IsFocused {
 		cx := l.wrap.X + fnt.Measure(l.font, text)
-		cmds = append(cmds, NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
+		cmds = append(cmds, display.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
 	}
 
 	return cmds
 }
 
-func (d *InputLayout) PaintEffects(cmds []Command) []Command {
+func (d *InputLayout) PaintEffects(cmds []display.Command) []display.Command {
 	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
 	return cmds
 }
@@ -528,8 +529,8 @@ func (l *InputLayout) self_rect() *rect.Rect {
 	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
-func PaintTree(l *LayoutNode, displayList *[]Command) {
-	var cmds []Command
+func PaintTree(l *LayoutNode, displayList *[]display.Command) {
+	var cmds []display.Command
 	if l.Layout.ShouldPaint() {
 		cmds = l.Layout.Paint()
 	}
@@ -558,7 +559,7 @@ func TreeToList(tree *LayoutNode) []*LayoutNode {
 	return list
 }
 
-func paint_visual_effects(node *html.HtmlNode, cmds []Command, rect *rect.Rect) []Command {
+func paint_visual_effects(node *html.HtmlNode, cmds []display.Command, rect *rect.Rect) []display.Command {
 	opacity := 1.0
 	if val, ok := node.Style["opacity"]; ok {
 		fval, err := strconv.ParseFloat(val, 32)
@@ -585,9 +586,9 @@ func paint_visual_effects(node *html.HtmlNode, cmds []Command, rect *rect.Rect) 
 		}
 		fVal, err := strconv.ParseFloat(strings.TrimSuffix(border_radius, "px"), 32)
 		if err == nil {
-			cmds = append(cmds, NewDrawBlend(1.0, "destination-in", []Command{NewDrawRRect(rect, fVal, "white")}))
+			cmds = append(cmds, display.NewDrawBlend(1.0, "destination-in", []display.Command{display.NewDrawRRect(rect, fVal, "white")}))
 		}
 	}
 
-	return []Command{NewDrawBlend(opacity, blend_mode, cmds)}
+	return []display.Command{display.NewDrawBlend(opacity, blend_mode, cmds)}
 }
