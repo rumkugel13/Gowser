@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"gowser/animate"
 	"gowser/css"
 	"gowser/html"
 	"maps"
@@ -73,7 +74,7 @@ func Style(node *html.HtmlNode, rules []css.Rule, tab *Tab) {
 				oldfVal, _ := strconv.ParseFloat(transition.old_value, 32)
 				newfVal, _ := strconv.ParseFloat(transition.new_value, 32)
 
-				animation := html.NewNumericAnimation(oldfVal, newfVal, transition.num_frames)
+				animation := animate.NewNumericAnimation(oldfVal, newfVal, transition.num_frames)
 				node.Animations[property] = animation
 				node.Style[property] = animation.Animate()
 			}

@@ -2,6 +2,7 @@ package html
 
 import (
 	"fmt"
+	"gowser/animate"
 	"strings"
 )
 
@@ -10,7 +11,7 @@ type HtmlNode struct {
 	Children   []*HtmlNode
 	Parent     *HtmlNode
 	Style      map[string]string
-	Animations map[string]Animation
+	Animations map[string]animate.Animation
 }
 
 func NewNode(token Token, parent *HtmlNode) *HtmlNode {
@@ -19,7 +20,7 @@ func NewNode(token Token, parent *HtmlNode) *HtmlNode {
 		Children:   []*HtmlNode{},
 		Parent:     parent,
 		Style:      make(map[string]string),
-		Animations: make(map[string]Animation),
+		Animations: make(map[string]animate.Animation),
 	}
 }
 
