@@ -312,6 +312,13 @@ func (b *Browser) HandleTab() {
 	b.ActiveTab.TaskRunner.ScheduleTask(task)
 }
 
+func (b *Browser) FocusContent() {
+	b.lock.Lock()
+	b.chrome.blur()
+	b.focus = "content"
+	b.lock.Unlock()
+}
+
 func (b *Browser) FocusAddressbar() {
 	b.lock.Lock()
 	b.chrome.focus_addressbar()

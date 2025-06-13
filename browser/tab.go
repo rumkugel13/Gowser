@@ -399,9 +399,10 @@ func (t *Tab) advance_tab() {
 	}
 
 	if idx < len(focusable_nodes) {
-		t.focus = focusable_nodes[idx]
+		t.focus_element(focusable_nodes[idx])
+		t.browser.FocusContent()
 	} else {
-		t.focus = nil
+		t.focus_element(nil)
 		t.browser.FocusAddressbar()
 	}
 	t.SetNeedsRender()
@@ -433,7 +434,7 @@ func (t *Tab) focus_element(node *html.HtmlNode) {
 		tok.IsFocused = false
 		t.focus.Token = tok
 	}
-	t.focus = nil
+	t.focus = node
 	if node != nil {
 		tok := node.Token.(html.ElementToken)
 		tok.IsFocused = true
