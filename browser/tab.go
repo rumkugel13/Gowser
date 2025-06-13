@@ -196,21 +196,18 @@ func (t *Tab) click(x, y float64) {
 	}
 
 	elt := objs[len(objs)-1].Node
+	if elt != nil && t.js.DispatchEvent("click", elt) {
+		return
+	}
 	for elt != nil {
 		element, ok := elt.Token.(html.ElementToken)
 		if !ok {
 			// pass, text token
 		} else if element.Tag == "a" && element.Attributes["href"] != "" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
 			url := t.url.Resolve(element.Attributes["href"])
 			t.Load(url, "")
 			return
 		} else if element.Tag == "input" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
 			t.focus = elt
 
 			tok := elt.Token.(html.ElementToken)
@@ -221,10 +218,7 @@ func (t *Tab) click(x, y float64) {
 			t.SetNeedsRender()
 			return
 		} else if element.Tag == "button" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
-			for elt != nil {
+			for elt.Parent != nil {
 				if elt.Token.(html.ElementToken).Tag == "form" && elt.Token.(html.ElementToken).Attributes["action"] != "" {
 					t.submit_form(elt)
 					return
