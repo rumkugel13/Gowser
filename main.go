@@ -53,6 +53,8 @@ func mainloop(browser *browser.Browser) {
 							browser.IncrementZoom(false)
 						} else if e.Keysym.Sym == sdl.K_0 {
 							browser.ResetZoom()
+						} else if e.Keysym.Sym == sdl.K_d {
+							browser.ToggleDarkMode()
 						}
 					} else {
 						if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {

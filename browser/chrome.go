@@ -70,42 +70,45 @@ func (c *Chrome) tab_rect(i int) *rect.Rect {
 }
 
 func (c *Chrome) paint() []html.Command {
+	color := "black"
+	if c.browser.dark_mode {
+		color = "white"
+	}
 	cmds := make([]html.Command, 0)
 
-	cmds = append(cmds, html.NewDrawRRect(rect.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
-	cmds = append(cmds, html.NewDrawLine(0, c.bottom, WIDTH, c.bottom, "black", 1))
+	cmds = append(cmds, html.NewDrawLine(0, c.bottom, WIDTH, c.bottom, color, 1))
 
-	cmds = append(cmds, html.NewDrawOutline(c.newtab_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawOutline(c.newtab_rect, color, 1))
 	cmds = append(cmds, html.NewDrawText(
 		c.newtab_rect.Left+c.padding,
 		c.newtab_rect.Top,
-		"+", c.font, "black",
+		"+", c.font, color,
 	))
 
 	for i, tab := range c.browser.tabs {
 		bounds := c.tab_rect(i)
-		cmds = append(cmds, html.NewDrawLine(bounds.Left, 0, bounds.Left, bounds.Bottom, "black", 1))
-		cmds = append(cmds, html.NewDrawLine(bounds.Right, 0, bounds.Right, bounds.Bottom, "black", 1))
-		cmds = append(cmds, html.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, "black"))
+		cmds = append(cmds, html.NewDrawLine(bounds.Left, 0, bounds.Left, bounds.Bottom, color, 1))
+		cmds = append(cmds, html.NewDrawLine(bounds.Right, 0, bounds.Right, bounds.Bottom, color, 1))
+		cmds = append(cmds, html.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, color))
 		if tab == c.browser.ActiveTab {
-			cmds = append(cmds, html.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, "black", 1))
-			cmds = append(cmds, html.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, "black", 1))
+			cmds = append(cmds, html.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, color, 1))
+			cmds = append(cmds, html.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, color, 1))
 		}
 	}
 
-	cmds = append(cmds, html.NewDrawOutline(c.back_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawOutline(c.back_rect, color, 1))
 	cmds = append(cmds, html.NewDrawText(
 		c.back_rect.Left+c.padding,
 		c.back_rect.Top,
-		"<", c.font, "black",
+		"<", c.font, color,
 	))
 
-	cmds = append(cmds, html.NewDrawOutline(c.address_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawOutline(c.address_rect, color, 1))
 	if c.focus == "address bar" {
 		cmds = append(cmds, html.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
-			c.address_bar, c.font, "black",
+			c.address_bar, c.font, color,
 		))
 		w := fnt.Measure(c.font, c.address_bar)
 		cmds = append(cmds, html.NewDrawLine(
@@ -123,7 +126,7 @@ func (c *Chrome) paint() []html.Command {
 		cmds = append(cmds, html.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
-			url, c.font, "black",
+			url, c.font, color,
 		))
 	}
 

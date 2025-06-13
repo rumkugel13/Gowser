@@ -43,6 +43,7 @@ type Tab struct {
 	needs_paint           bool
 	composited_updates    []*html.HtmlNode
 	zoom                  float64
+	dark_mode             bool
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -53,6 +54,7 @@ func NewTab(browser *Browser, tab_height float64) *Tab {
 		browser:               browser,
 		scroll_changed_in_tab: false,
 		zoom:                  1.0,
+		dark_mode:             browser.dark_mode,
 	}
 	tab.TaskRunner = NewTaskRunner(tab)
 	tab.TaskRunner.StartThread()
@@ -247,6 +249,11 @@ func (t *Tab) Render() {
 	t.browser.measure.Time("render")
 
 	if t.needs_style {
+		if t.dark_mode {
+			INHERITED_PROPERTIES["color"] = "white"
+		} else {
+			INHERITED_PROPERTIES["color"] = "black"
+		}
 		t.needs_layout = true
 		t.needs_style = false
 		start := time.Now()
@@ -417,5 +424,10 @@ func (t *Tab) ResetZoom() {
 	t.scroll /= t.zoom
 	t.zoom = 1.0
 	t.scroll_changed_in_tab = true
+	t.SetNeedsRender()
+}
+
+func (t *Tab) set_dark_mode(val bool) {
+	t.dark_mode = val
 	t.SetNeedsRender()
 }

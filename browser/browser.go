@@ -66,6 +66,7 @@ type Browser struct {
 	needs_raster            bool
 	needs_draw              bool
 	composited_updates      map[*html.HtmlNode]html.VisualEffectCommand
+	dark_mode               bool
 }
 
 func NewBrowser() *Browser {
@@ -80,6 +81,7 @@ func NewBrowser() *Browser {
 		needs_raster:          false,
 		needs_draw:            false,
 		composited_updates:    make(map[*html.HtmlNode]html.VisualEffectCommand),
+		dark_mode:             false,
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
@@ -112,7 +114,11 @@ func NewBrowser() *Browser {
 func (b *Browser) Draw() {
 	start := time.Now()
 	canvas := b.root_surface
-	canvas.SetColor(color.White)
+	background_color := color.White
+	if b.dark_mode {
+		background_color = color.Black
+	}
+	canvas.SetColor(background_color)
 	canvas.Clear()
 
 	// fast:
@@ -306,6 +312,14 @@ func (b *Browser) ResetZoom() {
 	b.ActiveTab.TaskRunner.ScheduleTask(task)
 }
 
+func (b *Browser) ToggleDarkMode() {
+	b.dark_mode = !b.dark_mode
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.set_dark_mode(b.dark_mode)
+	}, b.dark_mode)
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+}
+
 func (b *Browser) Commit(tab *Tab, data *CommitData) {
 	b.lock.Lock()
 	if tab == b.ActiveTab {
@@ -412,6 +426,10 @@ func (b *Browser) set_active_tab(new_tab *Tab) {
 	b.clear_data()
 	b.needs_animation_frame = true
 	b.animation_timer = nil
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.set_dark_mode(b.dark_mode)
+	}, b.dark_mode)
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
 }
 
 func (b *Browser) clear_data() {
@@ -433,7 +451,11 @@ func (b *Browser) raster_tab() {
 func (b *Browser) raster_chrome() {
 	start := time.Now()
 	canvas := b.chrome_surface
-	canvas.SetColor(color.White)
+	background_color := color.White
+	if b.dark_mode {
+		background_color = color.Black
+	}
+	canvas.SetColor(background_color)
 	canvas.Clear()
 
 	cmds := b.chrome.paint()
