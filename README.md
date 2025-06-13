@@ -188,6 +188,26 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Raster-and-draw thread
 
 13. Animating and Compositing
+    - [x] Different types of Animations (DOM, input-driven, etc)
+    - [ ] GPU Acceleration
+    - [x] Compositing for smooth and threaded visual effect animations
+    - [x] Optimized compositing layers
+    - [x] Transformed elements
+      - [x] Overlap testing
+    - [ ] Exercises (optional)
+      - [ ] background-color
+      - [ ] Easing functions
+      - [ ] Composited and threaded animations
+      - [ ] Width/Height animations
+      - [ ] CSS animations
+      - [ ] Overlap testing with transform animations
+      - [ ] Avoiding sparse composited layers
+      - [ ] Short display lists
+      - [ ] Hit testing
+      - [ ] z-index
+      - [ ] Animated scrolling
+      - [ ] Opacity plus draw
+
 14. Making Content Accessible
 15. Supporting Embedded Content
 16. Reusing Previous Computation
