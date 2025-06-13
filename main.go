@@ -27,6 +27,7 @@ func main() {
 }
 
 func mainloop(browser *browser.Browser) {
+	ctrl_down := false
 	for {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch e := event.(type) {
@@ -41,16 +42,31 @@ func mainloop(browser *browser.Browser) {
 				browser.HandleClick(e)
 			case *sdl.KeyboardEvent:
 				if e.State == sdl.RELEASED {
-					continue
-				}
-				if e.Keysym.Sym == sdl.K_RETURN {
-					browser.HandleEnter()
-				} else if e.Keysym.Sym == sdl.K_BACKSPACE {
-					browser.HandleBackspace()
-				} else if e.Keysym.Sym == sdl.K_UP {
-					browser.HandleUp()
-				} else if e.Keysym.Sym == sdl.K_DOWN {
-					browser.HandleDown()
+					if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {
+						ctrl_down = false
+					}
+				} else if e.State == sdl.PRESSED {
+					if ctrl_down {
+						if e.Keysym.Sym == sdl.K_PLUS {
+							browser.IncrementZoom(true)
+						} else if e.Keysym.Sym == sdl.K_MINUS {
+							browser.IncrementZoom(false)
+						} else if e.Keysym.Sym == sdl.K_0 {
+							browser.ResetZoom()
+						}
+					} else {
+						if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {
+							ctrl_down = true
+						} else if e.Keysym.Sym == sdl.K_RETURN {
+							browser.HandleEnter()
+						} else if e.Keysym.Sym == sdl.K_BACKSPACE {
+							browser.HandleBackspace()
+						} else if e.Keysym.Sym == sdl.K_UP {
+							browser.HandleUp()
+						} else if e.Keysym.Sym == sdl.K_DOWN {
+							browser.HandleDown()
+						}
+					}
 				}
 			case *sdl.TextInputEvent:
 				browser.HandleKey(e)

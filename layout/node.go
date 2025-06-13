@@ -12,6 +12,7 @@ type LayoutNode struct {
 	parent              *LayoutNode
 	children            []*LayoutNode
 	X, Y, Width, Height float64
+	Zoom                float64
 }
 
 func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode) *LayoutNode {

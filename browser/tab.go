@@ -42,6 +42,7 @@ type Tab struct {
 	needs_layout          bool
 	needs_paint           bool
 	composited_updates    []*html.HtmlNode
+	zoom                  float64
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -51,6 +52,7 @@ func NewTab(browser *Browser, tab_height float64) *Tab {
 		history:               make([]*u.URL, 0),
 		browser:               browser,
 		scroll_changed_in_tab: false,
+		zoom:                  1.0,
 	}
 	tab.TaskRunner = NewTaskRunner(tab)
 	tab.TaskRunner.StartThread()
@@ -58,6 +60,7 @@ func NewTab(browser *Browser, tab_height float64) *Tab {
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
+	t.zoom = 1
 	t.scroll = 0
 	t.scroll_changed_in_tab = true
 	t.TaskRunner.ClearPendingTasks()
@@ -259,7 +262,7 @@ func (t *Tab) Render() {
 		t.needs_layout = false
 		start := time.Now()
 		t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
-		t.document.Layout.Layout()
+		t.document.Layout.(*layout.DocumentLayout).LayoutWithZoom(t.zoom)
 		// layout.PrintTree(t.document, 0)
 		fmt.Println("Layout took:", time.Since(start))
 	}
@@ -396,4 +399,23 @@ func (t *Tab) submit_form(elt *html.HtmlNode) {
 
 func (t *Tab) allowed_request(url *u.URL) bool {
 	return t.allowed_origins == nil || slices.Contains(t.allowed_origins, url.Origin())
+}
+
+func (t *Tab) ZoomBy(increment bool) {
+	if increment {
+		t.zoom *= 1.1
+		t.scroll *= 1.1
+	} else {
+		t.zoom *= 1 / 1.1
+		t.scroll *= 1 / 1.1
+	}
+	t.scroll_changed_in_tab = true
+	t.SetNeedsRender()
+}
+
+func (t *Tab) ResetZoom() {
+	t.scroll /= t.zoom
+	t.zoom = 1.0
+	t.scroll_changed_in_tab = true
+	t.SetNeedsRender()
 }

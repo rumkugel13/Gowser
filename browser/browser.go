@@ -292,6 +292,20 @@ func (b *Browser) HandleEnter() {
 	b.lock.Unlock()
 }
 
+func (b *Browser) IncrementZoom(increment bool) {
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.ZoomBy(increment)
+	}, increment)
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+}
+
+func (b *Browser) ResetZoom() {
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.ResetZoom()
+	})
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+}
+
 func (b *Browser) Commit(tab *Tab, data *CommitData) {
 	b.lock.Lock()
 	if tab == b.ActiveTab {

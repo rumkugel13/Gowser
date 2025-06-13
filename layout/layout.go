@@ -46,15 +46,20 @@ func NewDocumentLayout() *DocumentLayout {
 	return &DocumentLayout{}
 }
 
-func (d *DocumentLayout) Layout() {
+func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
+	d.Wrapper.Zoom = zoom
 	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper)
 	d.Wrapper.children = append(d.Wrapper.children, child)
 
-	d.Wrapper.Width = DefaultWidth - 2*HSTEP
-	d.Wrapper.X = HSTEP
-	d.Wrapper.Y = VSTEP
+	d.Wrapper.Width = DefaultWidth - 2*dpx(HSTEP, d.Wrapper.Zoom)
+	d.Wrapper.X = dpx(HSTEP, d.Wrapper.Zoom)
+	d.Wrapper.Y = dpx(VSTEP, d.Wrapper.Zoom)
 	child.Layout.Layout()
 	d.Wrapper.Height = child.Height
+}
+
+func (d *DocumentLayout) Layout() {
+	fmt.Println("Normal layout should not be called on DocumentLayout")
 }
 
 func (d *DocumentLayout) String() string {
@@ -93,6 +98,7 @@ func NewBlockLayout(previous *LayoutNode) *BlockLayout {
 }
 
 func (l *BlockLayout) Layout() {
+	l.wrap.Zoom = l.wrap.parent.Zoom
 	if l.previous != nil {
 		l.wrap.Y = l.previous.Y + l.previous.Height
 	} else {
@@ -213,7 +219,7 @@ func (l *BlockLayout) word(node *html.HtmlNode, word string) {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := fSize * 0.75
+	size := dpx(fSize*0.75, l.wrap.Zoom)
 
 	font := fnt.GetFont(size, weight, style)
 	width := fnt.Measure(font, word)
@@ -232,7 +238,7 @@ func (l *BlockLayout) word(node *html.HtmlNode, word string) {
 }
 
 func (l *BlockLayout) input(node *html.HtmlNode) {
-	w := INPUT_WIDTH_PX
+	w := dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
 	if l.cursor_x+w > l.wrap.Width {
 		l.new_line()
 	}
@@ -253,7 +259,7 @@ func (l *BlockLayout) input(node *html.HtmlNode) {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := fSize * 0.75
+	size := dpx(fSize*0.75, l.wrap.Zoom)
 	font := fnt.GetFont(size, weight, style)
 	l.cursor_x += w + fnt.Measure(font, " ")
 }
@@ -284,6 +290,7 @@ func NewLineLayout(previous *LayoutNode) *LineLayout {
 }
 
 func (l *LineLayout) Layout() {
+	l.wrap.Zoom = l.wrap.parent.Zoom
 	l.wrap.Width = l.wrap.parent.Width
 	l.wrap.X = l.wrap.parent.X
 
@@ -365,6 +372,7 @@ func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
 }
 
 func (l *TextLayout) Layout() {
+	l.wrap.Zoom = l.wrap.parent.Zoom
 	weight := l.wrap.Node.Style["font-weight"]
 	style := l.wrap.Node.Style["font-style"]
 	if style == "normal" {
@@ -374,7 +382,7 @@ func (l *TextLayout) Layout() {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := fSize * 0.75
+	size := dpx(fSize*0.75, l.wrap.Zoom)
 	l.font = fnt.GetFont(size, weight, style)
 
 	l.wrap.Width = fnt.Measure(l.font, l.word)
@@ -431,6 +439,7 @@ func NewInputLayout(previous *LayoutNode) *InputLayout {
 }
 
 func (l *InputLayout) Layout() {
+	l.wrap.Zoom = l.wrap.parent.Zoom
 	weight := l.wrap.Node.Style["font-weight"]
 	style := l.wrap.Node.Style["font-style"]
 	if style == "normal" {
@@ -440,7 +449,7 @@ func (l *InputLayout) Layout() {
 	if err != nil {
 		fSize = 16 // Default font size if parsing fails
 	}
-	size := fSize * 0.75
+	size := dpx(fSize*0.75, l.wrap.Zoom)
 	l.font = fnt.GetFont(size, weight, style)
 
 	l.wrap.Width = INPUT_WIDTH_PX
@@ -599,4 +608,9 @@ func paint_visual_effects(node *html.HtmlNode, cmds []html.Command, rect *rect.R
 	blend_op := html.NewDrawBlend(opacity, blend_mode, node, cmds)
 	node.BlendOp = blend_op
 	return []html.Command{html.NewTransform(dx, dy, rect, node, []html.Command{blend_op})}
+}
+
+// css pixel -> device pixel
+func dpx(css_px, zoom float64) float64 {
+	return css_px * zoom
 }
