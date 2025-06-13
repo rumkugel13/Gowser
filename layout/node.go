@@ -1,6 +1,10 @@
 package layout
 
-import "gowser/html"
+import (
+	"gowser/css"
+	"gowser/html"
+	"gowser/rect"
+)
 
 type LayoutNode struct {
 	Node                *html.HtmlNode
@@ -19,4 +23,16 @@ func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode) *
 	}
 	layout.Wrap(node)
 	return node
+}
+
+func AbsoluteBoundsForObj(obj *LayoutNode) *rect.Rect {
+	rect := rect.NewRect(obj.X, obj.Y, obj.X+obj.Width, obj.Y+obj.Height)
+	cur := obj.Node
+	for cur != nil {
+		// note: on err map returns default value, which is ""
+		dx, dy := css.ParseTransform(cur.Style["transform"])
+		rect = html.MapTranslation(rect, dx, dy)
+		cur = cur.Parent
+	}
+	return rect
 }

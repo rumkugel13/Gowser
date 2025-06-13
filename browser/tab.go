@@ -178,10 +178,10 @@ func (t *Tab) click(x, y float64) {
 	t.focus = nil
 
 	y += t.scroll
+	loc_rect := rect.NewRect(x, y, x+1, y+1)
 	objs := []*layout.LayoutNode{}
 	for _, obj := range layout.TreeToList(t.document) {
-		if obj.X <= x && x < obj.X+obj.Width &&
-			obj.Y <= y && y < obj.Y+obj.Height {
+		if layout.AbsoluteBoundsForObj(obj).Intersects(loc_rect) {
 			objs = append(objs, obj)
 		}
 	}
