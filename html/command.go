@@ -201,14 +201,17 @@ type VisualEffectCommand interface {
 	Command
 	GetNode() *HtmlNode
 	Clone(child Command) VisualEffectCommand // Returns a new instance with updated children
+	NeedsCompositing() bool
+	Map(*rect.Rect) *rect.Rect
+	Unmap(*rect.Rect) *rect.Rect
 }
 
 type VisualEffect struct {
-	rect             *rect.Rect
-	children         []Command
-	parent           Command
-	Node             *HtmlNode
-	NeedsCompositing bool
+	rect              *rect.Rect
+	children          []Command
+	parent            Command
+	Node              *HtmlNode
+	needs_compositing bool
 }
 
 func NewVisualEffect(rect *rect.Rect, node *HtmlNode, children []Command) *VisualEffect {
@@ -217,15 +220,15 @@ func NewVisualEffect(rect *rect.Rect, node *HtmlNode, children []Command) *Visua
 	}
 	needs_compositing := slices.ContainsFunc(children, func(child Command) bool {
 		if v, ok := child.(*VisualEffect); ok {
-			return v.NeedsCompositing
+			return v.needs_compositing
 		}
 		return false
 	})
 	return &VisualEffect{
-		rect:             rect,
-		children:         children,
-		NeedsCompositing: needs_compositing,
-		Node:             node,
+		rect:              rect,
+		children:          children,
+		needs_compositing: needs_compositing,
+		Node:              node,
 	}
 }
 
@@ -250,6 +253,10 @@ func (d *VisualEffect) Execute(canvas *gg.Context) {
 
 func (d *VisualEffect) String() string {
 	return "VisualEffect()"
+}
+
+func (d *VisualEffect) NeedsCompositing() bool {
+	return d.needs_compositing
 }
 
 type DrawBlend struct {
@@ -287,7 +294,7 @@ func NewDrawBlend(opacity float64, blend_mode string, node *HtmlNode, children [
 		should_save:  blend_mode != "" || opacity < 1.0,
 	}
 	if blend.should_save {
-		blend.NeedsCompositing = true
+		blend.needs_compositing = true
 	}
 	return blend
 }
@@ -382,6 +389,22 @@ func (d *DrawBlend) String() string {
 	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
 }
 
+func (d *DrawBlend) Map(rct *rect.Rect) *rect.Rect {
+	if len(d.children) > 0 {
+		if b, ok := d.children[len(d.children)-1].(*DrawBlend); ok && b.blend_mode == "destination-in" {
+			bounds := rct.Clone()
+			bounds.Intersect(b.rect)
+			return bounds
+		}
+		return rct
+	}
+	return rct
+}
+
+func (d *DrawBlend) Unmap(rct *rect.Rect) *rect.Rect {
+	return rct
+}
+
 type Transform struct {
 	VisualEffect
 	dx, dy    float64
@@ -405,6 +428,9 @@ func (t *Transform) SetParent(command Command) {
 }
 
 func NewTransform(dx, dy float64, rect *rect.Rect, node *HtmlNode, children []Command) *Transform {
+	for _, child := range children {
+		rect = rect.Union(child.Rect())
+	}
 	return &Transform{
 		dx:           dx,
 		dy:           dy,
@@ -443,11 +469,24 @@ func (t *Transform) String() string {
 	return fmt.Sprintf("Transform(dx=%.2f, dy=%.2f, self_rect=%v)", t.dx, t.dy, t.self_rect)
 }
 
-func MapTranslation(rct *rect.Rect, dx, dy float64) *rect.Rect {
+func (t *Transform) Map(rct *rect.Rect) *rect.Rect {
+	return MapTranslation(rct, t.dx, t.dy, false)
+}
+
+func (t *Transform) Unmap(rct *rect.Rect) *rect.Rect {
+	return MapTranslation(rct, t.dx, t.dy, true)
+}
+
+func MapTranslation(rct *rect.Rect, dx, dy float64, reversed bool) *rect.Rect {
 	if dx == 0 && dy == 0 {
 		return rct
 	} else {
-		matrix := gg.Identity().Translate(dx, dy)
+		matrix := gg.Identity()
+		if reversed {
+			matrix = matrix.Translate(-dx, -dy)
+		} else {
+			matrix = matrix.Translate(dx, dy)
+		}
 		left, top := matrix.TransformPoint(rct.Left, rct.Top)
 		right, bottom := matrix.TransformPoint(rct.Right, rct.Bottom)
 		return rect.NewRect(left, top, right, bottom)
@@ -457,9 +496,7 @@ func MapTranslation(rct *rect.Rect, dx, dy float64) *rect.Rect {
 func PrintCommands(list []Command, indent int) {
 	for _, cmd := range list {
 		fmt.Println(strings.Repeat(" ", indent) + cmd.String())
-		// if bl, ok := cmd.(VisualEffectCommand); ok {
 		PrintCommands(*cmd.Children(), indent+2)
-		// }
 	}
 }
 

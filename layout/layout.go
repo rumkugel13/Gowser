@@ -2,7 +2,7 @@ package layout
 
 import (
 	"fmt"
-	// "gowser/css"
+	"gowser/css"
 	fnt "gowser/font"
 	"gowser/html"
 	"gowser/rect"
@@ -577,10 +577,10 @@ func paint_visual_effects(node *html.HtmlNode, cmds []html.Command, rect *rect.R
 		overflow = val
 	}
 
-	// var dx, dy float64
-	// if val, ok := node.Style["transform"]; ok {
-	// 	dx, dy = css.ParseTransform(val)
-	// }
+	var dx, dy float64
+	if val, ok := node.Style["transform"]; ok {
+		dx, dy = css.ParseTransform(val)
+	}
 
 	if overflow == "clip" {
 		border_radius := "0px"
@@ -598,6 +598,5 @@ func paint_visual_effects(node *html.HtmlNode, cmds []html.Command, rect *rect.R
 
 	blend_op := html.NewDrawBlend(opacity, blend_mode, node, cmds)
 	node.BlendOp = blend_op
-	// return []html.Command{html.NewTransform(dx, dy, rect, node, []html.Command{blend_op})}
-	return []html.Command{blend_op}
+	return []html.Command{html.NewTransform(dx, dy, rect, node, []html.Command{blend_op})}
 }

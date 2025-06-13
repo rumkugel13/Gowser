@@ -1,6 +1,7 @@
 package css
 
 import (
+	"cmp"
 	"gowser/try"
 	"slices"
 	"strconv"
@@ -119,6 +120,21 @@ func ParseTransition(value string) map[string]int {
 		}
 	}
 	return properties
+}
+
+func ParseTransform(value string) (float64, float64) {
+	if !strings.Contains(value, "translate(") {
+		return 0, 0
+	}
+	left_paren := strings.Index(value, "(")
+	right_paren := strings.Index(value, ")")
+	parts := strings.Split(value[left_paren+1:right_paren], ",")
+	xVal, err1 := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(parts[0], "px")), 32)
+	yVal, err2 := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(parts[1], "px")), 32)
+	if err := cmp.Or(err1, err2); err != nil {
+		return 0, 0
+	}
+	return xVal, yVal
 }
 
 func (p *CSSParser) Selector() Selector {

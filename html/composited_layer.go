@@ -63,8 +63,37 @@ func (c *CompositedLayer) CanMerge(display_item Command) bool {
 func (c *CompositedLayer) CompositedBounds() *rect.Rect {
 	rect := rect.NewRectEmpty()
 	for _, item := range c.DisplayItems {
-		rect = rect.Union(item.Rect())
+		rect = rect.Union(AbsoluteToLocal(item, LocalToAbsolute(item, item.Rect())))
 	}
 	rect.Inflate(1, 1)
 	return rect
+}
+
+func (c *CompositedLayer) AbsoluteBounds() *rect.Rect {
+	rect := rect.NewRectEmpty()
+	for _, item := range c.DisplayItems {
+		rect = rect.Union(LocalToAbsolute(item, item.Rect()))
+	}
+	return rect
+}
+
+func LocalToAbsolute(display_item Command, rct *rect.Rect) *rect.Rect {
+	for display_item.GetParent() != nil {
+		rct = display_item.GetParent().(VisualEffectCommand).Map(rct)
+		display_item = display_item.GetParent()
+	}
+	return rct
+}
+
+func AbsoluteToLocal(display_item Command, rct *rect.Rect) *rect.Rect {
+	parent_chain := []Command{}
+	for display_item.GetParent() != nil {
+		parent_chain = append(parent_chain, display_item.GetParent())
+		display_item = display_item.GetParent()
+	}
+	for i := len(parent_chain) - 1; i >= 0; i-- {
+		parent := parent_chain[i]
+		rct = parent.(VisualEffectCommand).Unmap(rct)
+	}
+	return rct
 }

@@ -31,7 +31,7 @@ func AbsoluteBoundsForObj(obj *LayoutNode) *rect.Rect {
 	for cur != nil {
 		// note: on err map returns default value, which is ""
 		dx, dy := css.ParseTransform(cur.Style["transform"])
-		rect = html.MapTranslation(rect, dx, dy)
+		rect = html.MapTranslation(rect, dx, dy, false)
 		cur = cur.Parent
 	}
 	return rect

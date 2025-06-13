@@ -417,10 +417,10 @@ func (b *Browser) composite() {
 	var non_composited_commands []html.Command
 	for _, cmd := range all_commands {
 		// note: need to check for other types of visualeffect as well
-		if v, ok := cmd.(*html.DrawBlend); (ok && !v.NeedsCompositing) || html.IsPaintCommand(cmd) {
+		if v, ok := cmd.(html.VisualEffectCommand); (ok && !v.NeedsCompositing()) || html.IsPaintCommand(cmd) {
 			if cmd.GetParent() == nil {
 				non_composited_commands = append(non_composited_commands, cmd)
-			} else if v, ok := cmd.GetParent().(*html.DrawBlend); ok && v.NeedsCompositing {
+			} else if v, ok := cmd.GetParent().(html.VisualEffectCommand); ok && v.NeedsCompositing() {
 				non_composited_commands = append(non_composited_commands, cmd)
 			}
 		}
@@ -435,7 +435,7 @@ func (b *Browser) composite() {
 				layer.Add(cmd)
 				merged = true
 				break
-			} else if layer.CompositedBounds().Intersects(cmd.Rect()) {
+			} else if layer.AbsoluteBounds().Intersects(html.LocalToAbsolute(cmd, cmd.Rect())) {
 				layer := html.NewCompositedLayer(cmd)
 				b.composited_layers = append(b.composited_layers, layer)
 			}

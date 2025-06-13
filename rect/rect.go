@@ -39,6 +39,17 @@ func (r *Rect) Union(other *Rect) *Rect {
 	}
 }
 
+func (r *Rect) Intersect(other *Rect) *Rect {
+	left := math.Max(r.Left, other.Left)
+	top := math.Max(r.Top, other.Top)
+	right := math.Min(r.Right, other.Right)
+	bottom := math.Min(r.Bottom, other.Bottom)
+	if left < right && top < bottom {
+		return NewRect(left, top, right, bottom)
+	}
+	return NewRectEmpty()
+}
+
 func (r *Rect) Inflate(dx, dy float64) {
 	r.Left -= dx
 	r.Top -= dy
