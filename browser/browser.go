@@ -271,6 +271,19 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 	b.lock.Unlock()
 }
 
+func (b *Browser) HandleBackspace() {
+	b.lock.Lock()
+	if b.chrome.backspace() {
+		b.SetNeedsRaster()
+	} else if b.focus == "content" {
+		task := task.NewTask(func(i ...interface{}) {
+			b.ActiveTab.backspace()
+		})
+		b.ActiveTab.TaskRunner.ScheduleTask(task)
+	}
+	b.lock.Unlock()
+}
+
 func (b *Browser) HandleEnter() {
 	b.lock.Lock()
 	if b.chrome.enter() {

@@ -101,7 +101,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Draw tabs, address bar and more
     - [x] Implement text editing
     - [ ] Exercises (Optional)
-      - [] Backspace
+      - [x] Backspace
       - [ ] Middle click
       - [ ] Window title
       - [ ] Forward

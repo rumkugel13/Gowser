@@ -357,6 +357,18 @@ func (t *Tab) keypress(char rune) {
 	}
 }
 
+func (t *Tab) backspace() {
+	if t.focus != nil {
+		if t.js.DispatchEvent("keydown", t.focus) {
+			return
+		}
+		if len(t.focus.Token.(html.ElementToken).Attributes["value"]) > 0 {
+			t.focus.Token.(html.ElementToken).Attributes["value"] = t.focus.Token.(html.ElementToken).Attributes["value"][:len(t.focus.Token.(html.ElementToken).Attributes["value"])-1]
+		}
+		t.SetNeedsRender()
+	}
+}
+
 func (t *Tab) submit_form(elt *html.HtmlNode) {
 	if t.js.DispatchEvent("submit", elt) {
 		return

@@ -165,6 +165,16 @@ func (c *Chrome) keypress(char rune) bool {
 	return false
 }
 
+func (c *Chrome) backspace() bool {
+	if c.focus == "address bar" {
+		if len(c.address_bar) > 0 {
+			c.address_bar = c.address_bar[:len(c.address_bar)-1]
+		}
+		return true
+	}
+	return false
+}
+
 func (c *Chrome) enter() bool {
 	if c.focus == "address bar" {
 		c.browser.ActiveTab.browser.ScheduleLoad(url.NewURL(c.address_bar), "")

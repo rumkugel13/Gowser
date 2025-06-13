@@ -45,6 +45,8 @@ func mainloop(browser *browser.Browser) {
 				}
 				if e.Keysym.Sym == sdl.K_RETURN {
 					browser.HandleEnter()
+				} else if e.Keysym.Sym == sdl.K_BACKSPACE {
+					browser.HandleBackspace()
 				} else if e.Keysym.Sym == sdl.K_UP {
 					browser.HandleUp()
 				} else if e.Keysym.Sym == sdl.K_DOWN {
