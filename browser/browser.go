@@ -201,6 +201,18 @@ func (b *Browser) HandleQuit() {
 	b.sdl_window.Destroy()
 }
 
+func (b *Browser) HandleUp() {
+	b.lock.Lock()
+	if b.active_tab_height == 0 {
+		b.lock.Unlock()
+		return
+	}
+	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll - SCROLL_STEP)
+	b.SetNeedsDraw()
+	b.needs_animation_frame = true
+	b.lock.Unlock()
+}
+
 func (b *Browser) HandleDown() {
 	b.lock.Lock()
 	if b.active_tab_height == 0 {
