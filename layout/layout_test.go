@@ -1,7 +1,6 @@
 package layout
 
 import (
-	"gowser/display"
 	"gowser/html"
 	"testing"
 )
@@ -56,7 +55,7 @@ func TestBasicLayout(t *testing.T) {
 	}
 
 	// Test paint commands
-	var commands []display.Command
+	var commands []html.Command
 	PaintTree(doc, &commands)
 	if len(commands) == 0 {
 		t.Error("Expected paint commands, got none")

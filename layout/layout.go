@@ -2,13 +2,13 @@ package layout
 
 import (
 	"fmt"
+	// "gowser/css"
 	fnt "gowser/font"
 	"gowser/html"
 	"gowser/rect"
 	"slices"
 	"strconv"
 	"strings"
-	"gowser/display"
 
 	"golang.org/x/image/font"
 )
@@ -32,10 +32,10 @@ var BLOCK_ELEMENTS = []string{
 type Layout interface {
 	Layout()
 	String() string
-	Paint() []display.Command
+	Paint() []html.Command
 	Wrap(*LayoutNode)
 	ShouldPaint() bool
-	PaintEffects([]display.Command) []display.Command
+	PaintEffects([]html.Command) []html.Command
 }
 
 type DocumentLayout struct {
@@ -61,11 +61,11 @@ func (d *DocumentLayout) String() string {
 	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.Wrapper.X, d.Wrapper.Y, d.Wrapper.Width, d.Wrapper.Height)
 }
 
-func (d *DocumentLayout) Paint() []display.Command {
-	return []display.Command{}
+func (d *DocumentLayout) Paint() []html.Command {
+	return []html.Command{}
 }
 
-func (d *DocumentLayout) PaintEffects(cmds []display.Command) []display.Command {
+func (d *DocumentLayout) PaintEffects(cmds []html.Command) []html.Command {
 	return cmds
 }
 
@@ -130,8 +130,8 @@ func (l *BlockLayout) String() string {
 		l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Token, l.wrap.Node.Style)
 }
 
-func (l *BlockLayout) Paint() []display.Command {
-	cmds := make([]display.Command, 0)
+func (l *BlockLayout) Paint() []html.Command {
+	cmds := make([]html.Command, 0)
 
 	bgcolor, ok := l.wrap.Node.Style["background-color"]
 	if !ok {
@@ -146,13 +146,13 @@ func (l *BlockLayout) Paint() []display.Command {
 		if err != nil {
 			actualRadius = 0 // Default radius size if parsing fails
 		}
-		rect := display.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
+		rect := html.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
 }
 
-func (d *BlockLayout) PaintEffects(cmds []display.Command) []display.Command {
+func (d *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
 	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
 	return cmds
 }
@@ -334,11 +334,11 @@ func (l *LineLayout) String() string {
 	return fmt.Sprintf("LineLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
-func (l *LineLayout) Paint() []display.Command {
-	return []display.Command{}
+func (l *LineLayout) Paint() []html.Command {
+	return []html.Command{}
 }
 
-func (d *LineLayout) PaintEffects(cmds []display.Command) []display.Command {
+func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 	return cmds
 }
 
@@ -401,12 +401,12 @@ func (l *TextLayout) String() string {
 	return fmt.Sprintf("TextLayout(x=%f, y=%f, width=%f, height=%f, word='%s', style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.word, l.wrap.Node.Style)
 }
 
-func (l *TextLayout) Paint() []display.Command {
+func (l *TextLayout) Paint() []html.Command {
 	color := l.wrap.Node.Style["color"]
-	return []display.Command{display.NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
+	return []html.Command{html.NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
 }
 
-func (d *TextLayout) PaintEffects(cmds []display.Command) []display.Command {
+func (d *TextLayout) PaintEffects(cmds []html.Command) []html.Command {
 	return cmds
 }
 
@@ -467,8 +467,8 @@ func (l *InputLayout) String() string {
 	return fmt.Sprintf("InputLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
 }
 
-func (l *InputLayout) Paint() []display.Command {
-	cmds := []display.Command{}
+func (l *InputLayout) Paint() []html.Command {
+	cmds := []html.Command{}
 	bgcolor, ok := l.wrap.Node.Style["background-color"]
 	if !ok {
 		bgcolor = "transparent"
@@ -482,7 +482,7 @@ func (l *InputLayout) Paint() []display.Command {
 		if err != nil {
 			actualRadius = 0 // Default radius size if parsing fails
 		}
-		rect := display.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
+		rect := html.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 
@@ -502,17 +502,17 @@ func (l *InputLayout) Paint() []display.Command {
 	}
 
 	color := l.wrap.Node.Style["color"]
-	cmds = append(cmds, display.NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
+	cmds = append(cmds, html.NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
 
 	if l.wrap.Node.Token.(html.ElementToken).IsFocused {
 		cx := l.wrap.X + fnt.Measure(l.font, text)
-		cmds = append(cmds, display.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
+		cmds = append(cmds, html.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
 	}
 
 	return cmds
 }
 
-func (d *InputLayout) PaintEffects(cmds []display.Command) []display.Command {
+func (d *InputLayout) PaintEffects(cmds []html.Command) []html.Command {
 	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
 	return cmds
 }
@@ -529,8 +529,8 @@ func (l *InputLayout) self_rect() *rect.Rect {
 	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 }
 
-func PaintTree(l *LayoutNode, displayList *[]display.Command) {
-	var cmds []display.Command
+func PaintTree(l *LayoutNode, displayList *[]html.Command) {
+	var cmds []html.Command
 	if l.Layout.ShouldPaint() {
 		cmds = l.Layout.Paint()
 	}
@@ -559,7 +559,7 @@ func TreeToList(tree *LayoutNode) []*LayoutNode {
 	return list
 }
 
-func paint_visual_effects(node *html.HtmlNode, cmds []display.Command, rect *rect.Rect) []display.Command {
+func paint_visual_effects(node *html.HtmlNode, cmds []html.Command, rect *rect.Rect) []html.Command {
 	opacity := 1.0
 	if val, ok := node.Style["opacity"]; ok {
 		fval, err := strconv.ParseFloat(val, 32)
@@ -576,6 +576,12 @@ func paint_visual_effects(node *html.HtmlNode, cmds []display.Command, rect *rec
 	if val, ok := node.Style["overflow"]; ok {
 		overflow = val
 	}
+
+	// var dx, dy float64
+	// if val, ok := node.Style["transform"]; ok {
+	// 	dx, dy = css.ParseTransform(val)
+	// }
+
 	if overflow == "clip" {
 		border_radius := "0px"
 		if val, ok := node.Style["border-radius"]; ok {
@@ -586,9 +592,12 @@ func paint_visual_effects(node *html.HtmlNode, cmds []display.Command, rect *rec
 		}
 		fVal, err := strconv.ParseFloat(strings.TrimSuffix(border_radius, "px"), 32)
 		if err == nil {
-			cmds = append(cmds, display.NewDrawBlend(1.0, "destination-in", []display.Command{display.NewDrawRRect(rect, fVal, "white")}))
+			cmds = append(cmds, html.NewDrawBlend(1.0, "destination-in", node, []html.Command{html.NewDrawRRect(rect, fVal, "white")}))
 		}
 	}
 
-	return []display.Command{display.NewDrawBlend(opacity, blend_mode, cmds)}
+	blend_op := html.NewDrawBlend(opacity, blend_mode, node, cmds)
+	node.BlendOp = blend_op
+	// return []html.Command{html.NewTransform(dx, dy, rect, node, []html.Command{blend_op})}
+	return []html.Command{blend_op}
 }

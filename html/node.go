@@ -12,6 +12,7 @@ type HtmlNode struct {
 	Parent     *HtmlNode
 	Style      map[string]string
 	Animations map[string]animate.Animation
+	BlendOp    VisualEffectCommand
 }
 
 func NewNode(token Token, parent *HtmlNode) *HtmlNode {

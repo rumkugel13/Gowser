@@ -3,9 +3,9 @@ package browser
 import (
 	"fmt"
 	"gowser/css"
-	"gowser/display"
 	"gowser/html"
 	"gowser/layout"
+	"gowser/rect"
 	"gowser/task"
 	"gowser/try"
 	u "gowser/url"
@@ -24,7 +24,7 @@ const (
 )
 
 type Tab struct {
-	display_list          []display.Command
+	display_list          []html.Command
 	scroll                float64
 	document              *layout.LayoutNode
 	url                   *u.URL
@@ -41,6 +41,7 @@ type Tab struct {
 	needs_style           bool
 	needs_layout          bool
 	needs_paint           bool
+	composited_updates    []*html.HtmlNode
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -266,9 +267,9 @@ func (t *Tab) Render() {
 	if t.needs_paint {
 		t.needs_paint = false
 		start := time.Now()
-		t.display_list = make([]display.Command, 0)
+		t.display_list = make([]html.Command, 0)
 		layout.PaintTree(t.document, &t.display_list)
-		// layout.PrintCommands(b.display_list)
+		// html.PrintCommands(t.display_list, 0)
 		fmt.Println("Paint took:", time.Since(start))
 	}
 
@@ -300,10 +301,13 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 			value := animation.Animate()
 			if value != "" {
 				node.Style[property_name] = value
-				t.SetNeedsLayout()
+				t.composited_updates = append(t.composited_updates, node)
+				t.SetNeedsPaint()
 			}
 		}
 	}
+
+	needs_composite := t.needs_style || t.needs_layout
 
 	t.Render()
 
@@ -312,9 +316,18 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 		scroll = &t.scroll
 	}
 
+	var composited_updates map[*html.HtmlNode]html.VisualEffectCommand
+	if !needs_composite {
+		composited_updates = map[*html.HtmlNode]html.VisualEffectCommand{}
+		for _, node := range t.composited_updates {
+			composited_updates[node] = node.BlendOp
+		}
+	}
+	t.composited_updates = make([]*html.HtmlNode, 0)
+
 	document_height := math.Ceil(t.document.Height + 2*layout.VSTEP)
-	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list)
-	t.display_list = make([]display.Command, 0)
+	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list, composited_updates)
+	t.display_list = make([]html.Command, 0)
 	t.browser.Commit(t, commit_data)
 	t.scroll_changed_in_tab = false
 }
@@ -326,6 +339,11 @@ func (t *Tab) SetNeedsRender() {
 
 func (t *Tab) SetNeedsLayout() {
 	t.needs_layout = true
+	t.browser.SetNeedsAnimationFrame(t)
+}
+
+func (t *Tab) SetNeedsPaint() {
+	t.needs_paint = true
 	t.browser.SetNeedsAnimationFrame(t)
 }
 

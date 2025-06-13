@@ -1,10 +1,16 @@
-package display
+package html
 
 import (
 	"gowser/rect"
 	"image/color"
 
+	// "image/color"
+
 	"github.com/fogleman/gg"
+)
+
+const (
+	SHOW_COMPOSITED_LAYER_BORDERS = true
 )
 
 type CompositedLayer struct {
@@ -21,7 +27,7 @@ func NewCompositedLayer(cmd Command) *CompositedLayer {
 }
 
 func (c *CompositedLayer) Raster() {
-	bounds := c.composited_bounds()
+	bounds := c.CompositedBounds()
 	if bounds.IsEmpty() {
 		return
 	}
@@ -35,15 +41,27 @@ func (c *CompositedLayer) Raster() {
 	canvas.SetColor(color.Transparent)
 	canvas.Clear()
 	canvas.Push()
-	canvas.Translate(-bounds.Left, -bounds.Top)
+	canvas.Translate(-float64(irect.Min.X), -float64(irect.Min.Y))
 	for _, item := range c.DisplayItems {
 		item.Execute(canvas)
 	}
 	canvas.Pop()
+	if SHOW_COMPOSITED_LAYER_BORDERS {
+		border_rect := rect.NewRect(1, 1, 1+float64(irect.Dx())-2, 1+float64(irect.Dy())-2)
+		NewDrawOutline(border_rect, "red", 1).Execute(canvas)
+	}
 }
 
-func (c *CompositedLayer) composited_bounds() *rect.Rect {
-	rect := rect.NewRect(0, 0, 0, 0)
+func (c *CompositedLayer) Add(display_item Command) {
+	c.DisplayItems = append(c.DisplayItems, display_item)
+}
+
+func (c *CompositedLayer) CanMerge(display_item Command) bool {
+	return display_item.GetParent() == c.DisplayItems[0].GetParent()
+}
+
+func (c *CompositedLayer) CompositedBounds() *rect.Rect {
+	rect := rect.NewRectEmpty()
 	for _, item := range c.DisplayItems {
 		rect = rect.Union(item.Rect())
 	}

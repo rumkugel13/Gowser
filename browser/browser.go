@@ -3,7 +3,7 @@ package browser
 import (
 	"fmt"
 	"gowser/css"
-	"gowser/display"
+	"gowser/html"
 	"gowser/task"
 	"gowser/trace"
 	"gowser/url"
@@ -40,40 +40,46 @@ func init() {
 }
 
 type Browser struct {
-	tabs                            []*Tab
-	ActiveTab                       *Tab
-	sdl_window                      *sdl.Window
-	root_surface                    *gg.Context
-	chrome                          *Chrome
-	focus                           string
-	RED_MASK                        uint32
-	GREEN_MASK                      uint32
-	BLUE_MASK                       uint32
-	ALPHA_MASK                      uint32
-	chrome_surface                  *gg.Context
-	tab_surface                     *gg.Context
-	animation_timer                 *time.Timer
-	needs_composite_raster_and_draw bool
-	needs_animation_frame           bool
-	measure                         *trace.MeasureTime
-	lock                            *sync.Mutex
-	active_tab_url                  *url.URL
-	active_tab_scroll               float64
-	active_tab_height               float64
-	active_tab_display_list         []display.Command
-	composited_layers               []*display.CompositedLayer
-	draw_list                       []display.Command
+	tabs                    []*Tab
+	ActiveTab               *Tab
+	sdl_window              *sdl.Window
+	root_surface            *gg.Context
+	chrome                  *Chrome
+	focus                   string
+	RED_MASK                uint32
+	GREEN_MASK              uint32
+	BLUE_MASK               uint32
+	ALPHA_MASK              uint32
+	chrome_surface          *gg.Context
+	tab_surface             *gg.Context
+	animation_timer         *time.Timer
+	needs_animation_frame   bool
+	measure                 *trace.MeasureTime
+	lock                    *sync.Mutex
+	active_tab_url          *url.URL
+	active_tab_scroll       float64
+	active_tab_height       float64
+	active_tab_display_list []html.Command
+	composited_layers       []*html.CompositedLayer
+	draw_list               []html.Command
+	needs_composite         bool
+	needs_raster            bool
+	needs_draw              bool
+	composited_updates      map[*html.HtmlNode]html.VisualEffectCommand
 }
 
 func NewBrowser() *Browser {
 	// browser thread
 	browser := &Browser{
-		tabs:                            make([]*Tab, 0),
-		ActiveTab:                       nil,
-		needs_composite_raster_and_draw: false,
-		needs_animation_frame:           false,
-		measure:                         trace.NewMeasureTime(),
-		lock:                            &sync.Mutex{},
+		tabs:                  make([]*Tab, 0),
+		ActiveTab:             nil,
+		needs_animation_frame: false,
+		measure:               trace.NewMeasureTime(),
+		lock:                  &sync.Mutex{},
+		needs_composite:       false,
+		needs_raster:          false,
+		needs_draw:            false,
+		composited_updates:    make(map[*html.HtmlNode]html.VisualEffectCommand),
 	}
 
 	window, err := sdl.CreateWindow("Gowser", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
@@ -202,7 +208,7 @@ func (b *Browser) HandleDown() {
 		return
 	}
 	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll + SCROLL_STEP)
-	b.SetNeedsCompositeRasterAndDraw()
+	b.SetNeedsDraw()
 	b.needs_animation_frame = true
 	b.lock.Unlock()
 }
@@ -218,12 +224,12 @@ func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
 	if float64(e.Y) < b.chrome.bottom {
 		b.focus = ""
 		b.chrome.click(float64(e.X), float64(e.Y))
-		b.SetNeedsCompositeRasterAndDraw()
+		b.SetNeedsRaster()
 	} else {
 		if b.focus != "content" {
 			b.focus = "content"
 			b.chrome.focus = ""
-			b.SetNeedsCompositeRasterAndDraw()
+			b.SetNeedsRaster()
 		}
 		b.chrome.blur()
 		tab_y := float64(e.Y) - b.chrome.bottom
@@ -243,7 +249,7 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 		return
 	}
 	if b.chrome.keypress(rune(char)) {
-		b.SetNeedsCompositeRasterAndDraw()
+		b.SetNeedsRaster()
 	} else if b.focus == "content" {
 		task := task.NewTask(func(i ...interface{}) {
 			b.ActiveTab.keypress(rune(char))
@@ -256,7 +262,7 @@ func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
 func (b *Browser) HandleEnter() {
 	b.lock.Lock()
 	if b.chrome.enter() {
-		b.SetNeedsCompositeRasterAndDraw()
+		b.SetNeedsRaster()
 	}
 	b.lock.Unlock()
 }
@@ -273,27 +279,41 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 			b.active_tab_display_list = data.display_list
 		}
 		b.animation_timer = nil
-		b.SetNeedsCompositeRasterAndDraw()
+		b.composited_updates = data.composited_updates
+		if b.composited_updates == nil {
+			b.composited_updates = make(map[*html.HtmlNode]html.VisualEffectCommand)
+			b.SetNeedsComposite()
+		} else {
+			b.SetNeedsDraw()
+		}
 	}
 	b.lock.Unlock()
 }
 
 func (b *Browser) CompositeRasterAndDraw() {
 	b.lock.Lock()
-	if !b.needs_composite_raster_and_draw {
+	if !b.needs_composite && !b.needs_raster && !b.needs_draw {
 		b.lock.Unlock()
 		return
 	}
 	b.measure.Time("raster_and_draw")
 
-	b.composite()
-	b.raster_chrome()
-	b.raster_tab()
-	b.paint_draw_list()
-	b.Draw()
+	if b.needs_composite {
+		b.composite()
+	}
+	if b.needs_raster {
+		b.raster_chrome()
+		b.raster_tab()
+	}
+	if b.needs_draw {
+		b.paint_draw_list()
+		b.Draw()
+	}
 
 	b.measure.Stop("raster_and_draw")
-	b.needs_composite_raster_and_draw = false
+	b.needs_composite = false
+	b.needs_raster = false
+	b.needs_draw = false
 	b.lock.Unlock()
 }
 
@@ -317,8 +337,19 @@ func (b *Browser) ScheduleAnimationFrame() {
 	b.lock.Unlock()
 }
 
-func (b *Browser) SetNeedsCompositeRasterAndDraw() {
-	b.needs_composite_raster_and_draw = true
+func (b *Browser) SetNeedsComposite() {
+	b.needs_composite = true
+	b.needs_raster = true
+	b.needs_draw = true
+}
+
+func (b *Browser) SetNeedsRaster() {
+	b.needs_raster = true
+	b.needs_draw = true
+}
+
+func (b *Browser) SetNeedsDraw() {
+	b.needs_draw = true
 }
 
 func (b *Browser) SetNeedsAnimationFrame(tab *Tab) {
@@ -339,30 +370,21 @@ func (b *Browser) ScheduleLoad(url *url.URL, body string) {
 
 func (b *Browser) set_active_tab(new_tab *Tab) {
 	b.ActiveTab = new_tab
-	b.active_tab_scroll = 0
-	b.active_tab_url = nil
+	b.clear_data()
 	b.needs_animation_frame = true
 	b.animation_timer = nil
 }
 
+func (b *Browser) clear_data() {
+	b.active_tab_scroll = 0
+	b.active_tab_url = nil
+	b.active_tab_display_list = make([]html.Command, 0)
+	b.composited_layers = make([]*html.CompositedLayer, 0)
+	b.composited_updates = make(map[*html.HtmlNode]html.VisualEffectCommand)
+}
+
 func (b *Browser) raster_tab() {
-	// if b.active_tab_height == 0 {
-	// 	return
-	// }
 	start := time.Now()
-	// tab_height := b.active_tab_height
-
-	// if b.tab_surface == nil || tab_height != float64(b.tab_surface.Height()) {
-	// 	b.tab_surface = gg.NewContext(WIDTH, int(tab_height))
-	// }
-
-	// canvas := b.tab_surface
-	// canvas.SetColor(color.White)
-	// canvas.Clear()
-	// layout.PrintCommands(b.active_tab_display_list, 0)
-	// for _, cmd := range b.active_tab_display_list {
-	// 	cmd.Execute(canvas)
-	// }
 	for _, composited_layer := range b.composited_layers {
 		composited_layer.Raster()
 	}
@@ -385,27 +407,48 @@ func (b *Browser) raster_chrome() {
 
 func (b *Browser) composite() {
 	add_parent_pointers(b.active_tab_display_list, nil)
-	b.composited_layers = make([]*display.CompositedLayer, 0)
+	b.composited_layers = make([]*html.CompositedLayer, 0)
 
-	var all_commands []display.Command
+	var all_commands []html.Command
 	for _, cmd := range b.active_tab_display_list {
-		all_commands = append(all_commands, display.CommandTreeToList(cmd)...)
+		all_commands = append(all_commands, html.CommandTreeToList(cmd)...)
 	}
 
-	var paint_commands []display.Command
+	var non_composited_commands []html.Command
 	for _, cmd := range all_commands {
-		if display.IsPaintCommand(cmd) {
-			paint_commands = append(paint_commands, cmd)
+		// note: need to check for other types of visualeffect as well
+		if v, ok := cmd.(*html.DrawBlend); (ok && !v.NeedsCompositing) || html.IsPaintCommand(cmd) {
+			if cmd.GetParent() == nil {
+				non_composited_commands = append(non_composited_commands, cmd)
+			} else if v, ok := cmd.GetParent().(*html.DrawBlend); ok && v.NeedsCompositing {
+				non_composited_commands = append(non_composited_commands, cmd)
+			}
 		}
 	}
 
-	for _, cmd := range paint_commands {
-		layer := display.NewCompositedLayer(cmd)
-		b.composited_layers = append(b.composited_layers, layer)
+	for _, cmd := range non_composited_commands {
+		merged := false
+
+		for i := len(b.composited_layers) - 1; i >= 0; i-- {
+			layer := b.composited_layers[i]
+			if layer.CanMerge(cmd) {
+				layer.Add(cmd)
+				merged = true
+				break
+			} else if layer.CompositedBounds().Intersects(cmd.Rect()) {
+				layer := html.NewCompositedLayer(cmd)
+				b.composited_layers = append(b.composited_layers, layer)
+			}
+		}
+
+		if !merged {
+			layer := html.NewCompositedLayer(cmd)
+			b.composited_layers = append(b.composited_layers, layer)
+		}
 	}
 }
 
-func add_parent_pointers(nodes []display.Command, parent display.Command) {
+func add_parent_pointers(nodes []html.Command, parent html.Command) {
 	for _, node := range nodes {
 		node.SetParent(parent)
 		add_parent_pointers(*node.Children(), node)
@@ -413,22 +456,24 @@ func add_parent_pointers(nodes []display.Command, parent display.Command) {
 }
 
 func (b *Browser) paint_draw_list() {
-	b.draw_list = make([]display.Command, 0)
-	new_effects := make(map[display.Command]display.Command)
+	b.draw_list = make([]html.Command, 0)
+	new_effects := make(map[html.Command]html.Command)
 	for _, composited_layer := range b.composited_layers {
-		var current_effect display.Command = display.NewDrawCompositedLayer(composited_layer)
+		var current_effect html.Command = html.NewDrawCompositedLayer(composited_layer)
 		if len(composited_layer.DisplayItems) == 0 {
 			continue
 		}
 		parent := composited_layer.DisplayItems[0].GetParent()
 		for parent != nil {
-			if new_parent, ok := new_effects[parent]; ok {
-				children := new_parent.Children()
+			new_parent := b.get_latest(parent.(html.VisualEffectCommand))
+			if parent_effect, ok := new_effects[new_parent]; ok {
+				children := parent_effect.Children()
 				// note: do we need addchild method?
 				*children = append(*children, current_effect)
 				break
 			} else {
-				current_effect = parent.(*display.DrawBlend).Clone(current_effect)
+				current_effect = new_parent.(html.VisualEffectCommand).Clone(current_effect)
+				new_effects[new_parent] = current_effect
 				parent = parent.GetParent()
 			}
 		}
@@ -436,4 +481,15 @@ func (b *Browser) paint_draw_list() {
 			b.draw_list = append(b.draw_list, current_effect)
 		}
 	}
+}
+
+func (b *Browser) get_latest(effect html.VisualEffectCommand) html.Command {
+	node := effect.GetNode()
+	if _, ok := b.composited_updates[node]; !ok {
+		return effect
+	}
+	if _, ok := effect.(*html.DrawBlend); !ok {
+		return effect
+	}
+	return b.composited_updates[node]
 }

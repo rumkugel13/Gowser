@@ -19,7 +19,18 @@ func NewRect(left, top, right, bottom float64) *Rect {
 	}
 }
 
+func NewRectEmpty() *Rect {
+	return &Rect{}
+}
+
 func (r *Rect) Union(other *Rect) *Rect {
+	if r.IsEmpty() && other.IsEmpty() {
+		return NewRectEmpty()
+	} else if r.IsEmpty() {
+		return other.Clone()
+	} else if other.IsEmpty() {
+		return r.Clone()
+	}
 	return &Rect{
 		Left:   min(r.Left, other.Left),
 		Top:    min(r.Top, other.Top),
@@ -56,6 +67,11 @@ func (r *Rect) Height() float64 {
 	return r.Bottom - r.Top
 }
 
+func (r *Rect) Intersects(other *Rect) bool {
+	return r.Left < other.Right && r.Right > other.Left &&
+		r.Top < other.Bottom && r.Bottom > other.Top
+}
+
 func (r *Rect) ContainsPoint(x, y float64) bool {
 	return x >= r.Left && x < r.Right &&
 		y >= r.Top && y < r.Bottom
@@ -63,4 +79,8 @@ func (r *Rect) ContainsPoint(x, y float64) bool {
 
 func (r *Rect) String() string {
 	return fmt.Sprintf("Rect(left=%f, top=%f, right=%f, bottom=%f)", r.Left, r.Top, r.Right, r.Bottom)
+}
+
+func (r *Rect) Clone() *Rect {
+	return &Rect{Left: r.Left, Top: r.Top, Right: r.Right, Bottom: r.Bottom}
 }

@@ -1,10 +1,11 @@
-package display
+package html
 
 import (
 	"fmt"
 	col "gowser/color"
 	"image"
 	"image/color"
+	"slices"
 
 	// "image/draw"
 	fnt "gowser/font"
@@ -158,19 +159,19 @@ type DrawCompositedLayer struct {
 func NewDrawCompositedLayer(composited_layer *CompositedLayer) *DrawCompositedLayer {
 	return &DrawCompositedLayer{
 		composited_layer: composited_layer,
-		PaintCommand:     PaintCommand{rect: composited_layer.composited_bounds()},
+		PaintCommand:     PaintCommand{rect: composited_layer.CompositedBounds()},
 	}
 }
 
 func (d *DrawCompositedLayer) Execute(canvas *gg.Context) {
 	layer := d.composited_layer
-	bounds := layer.composited_bounds()
+	bounds := layer.CompositedBounds()
 
 	canvas.DrawImage(layer.surface.Image(), int(bounds.Left), int(bounds.Top))
 }
 
 func (d *DrawCompositedLayer) String() string {
-	return "DrawCompositedLayer()"
+	return fmt.Sprint("DrawCompositedLayer(rect=", d.PaintCommand.rect, ", composited_layer bounds=", d.composited_layer.CompositedBounds(), ")")
 }
 
 type BlendMode uint
@@ -197,22 +198,34 @@ func parse_blend_mode(blend_mode string) BlendMode {
 }
 
 type VisualEffectCommand interface {
+	Command
+	GetNode() *HtmlNode
 	Clone(child Command) VisualEffectCommand // Returns a new instance with updated children
 }
 
 type VisualEffect struct {
-	rect     *rect.Rect
-	children []Command
-	parent   Command
+	rect             *rect.Rect
+	children         []Command
+	parent           Command
+	Node             *HtmlNode
+	NeedsCompositing bool
 }
 
-func NewVisualEffect(rect *rect.Rect, children []Command) *VisualEffect {
+func NewVisualEffect(rect *rect.Rect, node *HtmlNode, children []Command) *VisualEffect {
 	for _, child := range children {
 		rect = rect.Union(child.Rect())
 	}
+	needs_compositing := slices.ContainsFunc(children, func(child Command) bool {
+		if v, ok := child.(*VisualEffect); ok {
+			return v.NeedsCompositing
+		}
+		return false
+	})
 	return &VisualEffect{
-		rect:     rect,
-		children: children,
+		rect:             rect,
+		children:         children,
+		NeedsCompositing: needs_compositing,
+		Node:             node,
 	}
 }
 
@@ -232,48 +245,60 @@ func (p *VisualEffect) GetParent() Command {
 	return p.parent
 }
 
+func (d *VisualEffect) Execute(canvas *gg.Context) {
+}
+
+func (d *VisualEffect) String() string {
+	return "VisualEffect()"
+}
+
 type DrawBlend struct {
-	PaintCommand
-	*VisualEffect
+	VisualEffect
 	opacity     float64
 	blend_mode  string
 	should_save bool
 }
 
 func (d *DrawBlend) Children() *[]Command {
-	return d.PaintCommand.Children()
+	return d.VisualEffect.Children()
 }
 
 func (d *DrawBlend) GetParent() Command {
-	return d.PaintCommand.GetParent()
+	return d.VisualEffect.GetParent()
 }
 
 func (d *DrawBlend) Rect() *rect.Rect {
-	return d.PaintCommand.Rect()
+	return d.VisualEffect.Rect()
 }
 
 func (d *DrawBlend) SetParent(command Command) {
-	d.PaintCommand.SetParent(command)
+	d.VisualEffect.SetParent(command)
 }
 
-func NewDrawBlend(opacity float64, blend_mode string, children []Command) *DrawBlend {
-	r := &rect.Rect{}
+func NewDrawBlend(opacity float64, blend_mode string, node *HtmlNode, children []Command) *DrawBlend {
+	r := rect.NewRectEmpty()
 	for _, child := range children {
 		r = r.Union(child.Rect())
 	}
-	return &DrawBlend{
-		PaintCommand: PaintCommand{rect: r, children: children},
-		VisualEffect: NewVisualEffect(&rect.Rect{}, children),
+	blend := &DrawBlend{
+		VisualEffect: *NewVisualEffect(r.Clone(), node, children),
 		opacity:      opacity,
 		blend_mode:   blend_mode,
 		should_save:  blend_mode != "" || opacity < 1.0,
 	}
+	if blend.should_save {
+		blend.NeedsCompositing = true
+	}
+	return blend
 }
 
-func (d *DrawBlend) Clone(child Command) *DrawBlend {
+func (d *DrawBlend) GetNode() *HtmlNode {
+	return d.VisualEffect.Node
+}
+
+func (d *DrawBlend) Clone(child Command) VisualEffectCommand {
 	return &DrawBlend{
-		PaintCommand: d.PaintCommand,
-		VisualEffect: NewVisualEffect(&rect.Rect{}, []Command{child}),
+		VisualEffect: *NewVisualEffect(rect.NewRectEmpty(), d.Node, []Command{child}),
 		opacity:      d.opacity,
 		blend_mode:   d.blend_mode,
 		should_save:  d.should_save,
@@ -288,13 +313,19 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 		return
 	}
 
+	rect := d.rect.RoundOutToInt()
 	// Create a new context for the layer
-	layerContext := gg.NewContext(canvas.Width(), canvas.Height())
+	layerContext := gg.NewContext(rect.Dx(), rect.Dy())
+	layerContext.SetColor(color.Transparent)
+	layerContext.Clear()
+	layerContext.Push()
+	layerContext.Translate(-d.rect.Left, -d.rect.Top)
 
 	// Execute each child command on the layer context
 	for _, cmd := range d.VisualEffect.children {
 		cmd.Execute(layerContext)
 	}
+	layerContext.Pop()
 
 	// Get the image from the layer context
 	src := layerContext.Image().(*image.RGBA)
@@ -308,7 +339,7 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 	}
 
 	// Get the destination image from the canvas
-	dst := canvas.Image().(*image.RGBA)
+	dst := canvas.Image().(*image.RGBA).SubImage(rect)
 
 	var blended image.Image
 
@@ -328,8 +359,8 @@ func (d *DrawBlend) Execute(canvas *gg.Context) {
 
 	// Draw the image with opacity onto the main canvas
 	// rect := image.Rect(int(d.VisualEffect.rect.Left), int(d.VisualEffect.rect.Top), int(d.VisualEffect.rect.Right), int(d.VisualEffect.rect.Bottom))
-	// draw.Draw(dst, rect, blended, image.Point{X: int(d.VisualEffect.rect.Left), Y: int(d.VisualEffect.rect.Top)}, draw.Over)
-	canvas.DrawImage(blended, 0, 0)
+	// draw.Draw(dst.(*image.RGBA), dst.Bounds(), blended, image.ZP, draw.Src)
+	canvas.DrawImage(blended, rect.Min.X, rect.Min.Y)
 }
 
 func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
@@ -348,15 +379,87 @@ func destinationInBlend(dst image.Image, src image.Image) *image.RGBA {
 }
 
 func (d *DrawBlend) String() string {
-	return fmt.Sprint("DrawBlend(rect=", d.PaintCommand.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
+	return fmt.Sprint("DrawBlend(rect=", d.rect, ", blend_mode='", d.blend_mode, "', opacity=", d.opacity, ", shoud_save=", d.should_save, ")")
+}
+
+type Transform struct {
+	VisualEffect
+	dx, dy    float64
+	self_rect *rect.Rect
+}
+
+func (t *Transform) Children() *[]Command {
+	return t.VisualEffect.Children()
+}
+
+func (t *Transform) GetParent() Command {
+	return t.VisualEffect.GetParent()
+}
+
+func (t *Transform) Rect() *rect.Rect {
+	return t.VisualEffect.Rect()
+}
+
+func (t *Transform) SetParent(command Command) {
+	t.VisualEffect.SetParent(command)
+}
+
+func NewTransform(dx, dy float64, rect *rect.Rect, node *HtmlNode, children []Command) *Transform {
+	return &Transform{
+		dx:           dx,
+		dy:           dy,
+		self_rect:    rect,
+		VisualEffect: *NewVisualEffect(rect, node, children),
+	}
+}
+
+func (t *Transform) GetNode() *HtmlNode {
+	return t.VisualEffect.Node
+}
+
+func (t *Transform) Clone(child Command) VisualEffectCommand {
+	return &Transform{
+		VisualEffect: *NewVisualEffect(rect.NewRectEmpty(), t.Node, []Command{child}),
+		dx:           t.dx,
+		dy:           t.dy,
+		self_rect:    t.self_rect,
+	}
+}
+
+func (t *Transform) Execute(canvas *gg.Context) {
+	if t.dx != 0 || t.dy != 0 {
+		canvas.Push()
+		canvas.Translate(t.dx, t.dy)
+	}
+	for _, cmd := range t.children {
+		cmd.Execute(canvas)
+	}
+	if t.dx != 0 || t.dy != 0 {
+		canvas.Pop()
+	}
+}
+
+func (t *Transform) String() string {
+	return fmt.Sprintf("Transform(dx=%.2f, dy=%.2f, self_rect=%v)", t.dx, t.dy, t.self_rect)
+}
+
+func MapTranslation(rct *rect.Rect, dx, dy float64) *rect.Rect {
+	if dx == 0 && dy == 0 {
+		return rct
+	} else {
+		matrix := gg.Identity().Translate(dx, dy)
+		left, top := matrix.TransformPoint(rct.Left, rct.Top)
+		right, bottom := matrix.TransformPoint(rct.Right, rct.Bottom)
+		return rect.NewRect(left, top, right, bottom)
+	}
 }
 
 func PrintCommands(list []Command, indent int) {
 	for _, cmd := range list {
 		fmt.Println(strings.Repeat(" ", indent) + cmd.String())
-		if bl, ok := cmd.(*DrawBlend); ok {
-			PrintCommands(*bl.Children(), indent+2)
-		}
+		// if bl, ok := cmd.(VisualEffectCommand); ok {
+		PrintCommands(*cmd.Children(), indent+2)
+		// }
 	}
 }
 

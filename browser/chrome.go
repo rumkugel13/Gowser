@@ -2,7 +2,7 @@ package browser
 
 import (
 	"fmt"
-	"gowser/display"
+	"gowser/html"
 	fnt "gowser/font"
 	"gowser/rect"
 	"gowser/task"
@@ -69,14 +69,14 @@ func (c *Chrome) tab_rect(i int) *rect.Rect {
 	)
 }
 
-func (c *Chrome) paint() []display.Command {
-	cmds := make([]display.Command, 0)
+func (c *Chrome) paint() []html.Command {
+	cmds := make([]html.Command, 0)
 
-	cmds = append(cmds, display.NewDrawRRect(rect.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
-	cmds = append(cmds, display.NewDrawLine(0, c.bottom, WIDTH, c.bottom, "black", 1))
+	cmds = append(cmds, html.NewDrawRRect(rect.NewRect(0, 0, WIDTH, c.bottom), 0, "white"))
+	cmds = append(cmds, html.NewDrawLine(0, c.bottom, WIDTH, c.bottom, "black", 1))
 
-	cmds = append(cmds, display.NewDrawOutline(c.newtab_rect, "black", 1))
-	cmds = append(cmds, display.NewDrawText(
+	cmds = append(cmds, html.NewDrawOutline(c.newtab_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawText(
 		c.newtab_rect.Left+c.padding,
 		c.newtab_rect.Top,
 		"+", c.font, "black",
@@ -84,31 +84,31 @@ func (c *Chrome) paint() []display.Command {
 
 	for i, tab := range c.browser.tabs {
 		bounds := c.tab_rect(i)
-		cmds = append(cmds, display.NewDrawLine(bounds.Left, 0, bounds.Left, bounds.Bottom, "black", 1))
-		cmds = append(cmds, display.NewDrawLine(bounds.Right, 0, bounds.Right, bounds.Bottom, "black", 1))
-		cmds = append(cmds, display.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, "black"))
+		cmds = append(cmds, html.NewDrawLine(bounds.Left, 0, bounds.Left, bounds.Bottom, "black", 1))
+		cmds = append(cmds, html.NewDrawLine(bounds.Right, 0, bounds.Right, bounds.Bottom, "black", 1))
+		cmds = append(cmds, html.NewDrawText(bounds.Left+c.padding, bounds.Top+c.padding, fmt.Sprintf("Tab %v", i), c.font, "black"))
 		if tab == c.browser.ActiveTab {
-			cmds = append(cmds, display.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, "black", 1))
-			cmds = append(cmds, display.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, "black", 1))
+			cmds = append(cmds, html.NewDrawLine(0, bounds.Bottom, bounds.Left, bounds.Bottom, "black", 1))
+			cmds = append(cmds, html.NewDrawLine(bounds.Right, bounds.Bottom, WIDTH, bounds.Bottom, "black", 1))
 		}
 	}
 
-	cmds = append(cmds, display.NewDrawOutline(c.back_rect, "black", 1))
-	cmds = append(cmds, display.NewDrawText(
+	cmds = append(cmds, html.NewDrawOutline(c.back_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawText(
 		c.back_rect.Left+c.padding,
 		c.back_rect.Top,
 		"<", c.font, "black",
 	))
 
-	cmds = append(cmds, display.NewDrawOutline(c.address_rect, "black", 1))
+	cmds = append(cmds, html.NewDrawOutline(c.address_rect, "black", 1))
 	if c.focus == "address bar" {
-		cmds = append(cmds, display.NewDrawText(
+		cmds = append(cmds, html.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
 			c.address_bar, c.font, "black",
 		))
 		w := fnt.Measure(c.font, c.address_bar)
-		cmds = append(cmds, display.NewDrawLine(
+		cmds = append(cmds, html.NewDrawLine(
 			c.address_rect.Left+c.padding+w,
 			c.address_rect.Top,
 			c.address_rect.Left+c.padding+w,
@@ -120,7 +120,7 @@ func (c *Chrome) paint() []display.Command {
 		if c.browser.active_tab_url != nil {
 			url = c.browser.active_tab_url.String()
 		}
-		cmds = append(cmds, display.NewDrawText(
+		cmds = append(cmds, html.NewDrawText(
 			c.address_rect.Left+c.padding,
 			c.address_rect.Top,
 			url, c.font, "black",
