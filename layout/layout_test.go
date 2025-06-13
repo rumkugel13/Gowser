@@ -34,9 +34,9 @@ func TestBasicLayout(t *testing.T) {
 	doc.Layout.Layout()
 
 	// Basic tests
-	if doc.Width != DefaultWidth-2*HSTEP {
+	if doc.Width != WIDTH-2*HSTEP {
 		t.Errorf("Document width incorrect, got: %f, want: %f",
-			doc.Width, DefaultWidth-2*HSTEP)
+			doc.Width, WIDTH-2*HSTEP)
 	}
 
 	if doc.X != HSTEP {

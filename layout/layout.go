@@ -16,7 +16,7 @@ import (
 const (
 	HSTEP          = 13.
 	VSTEP          = 18.
-	DefaultWidth   = 800.
+	WIDTH          = 800.
 	INPUT_WIDTH_PX = 200.
 )
 
@@ -51,7 +51,7 @@ func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
 	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper)
 	d.Wrapper.children = append(d.Wrapper.children, child)
 
-	d.Wrapper.Width = DefaultWidth - 2*dpx(HSTEP, d.Wrapper.Zoom)
+	d.Wrapper.Width = WIDTH - 2*dpx(HSTEP, d.Wrapper.Zoom)
 	d.Wrapper.X = dpx(HSTEP, d.Wrapper.Zoom)
 	d.Wrapper.Y = dpx(VSTEP, d.Wrapper.Zoom)
 	child.Layout.Layout()
