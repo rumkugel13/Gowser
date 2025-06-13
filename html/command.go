@@ -288,7 +288,7 @@ func NewDrawBlend(opacity float64, blend_mode string, node *HtmlNode, children [
 		r = r.Union(child.Rect())
 	}
 	blend := &DrawBlend{
-		VisualEffect: *NewVisualEffect(r.Clone(), node, children),
+		VisualEffect: *NewVisualEffect(rect.NewRectEmpty(), node, children),
 		opacity:      opacity,
 		blend_mode:   blend_mode,
 		should_save:  blend_mode != "" || opacity < 1.0,
@@ -427,15 +427,15 @@ func (t *Transform) SetParent(command Command) {
 	t.VisualEffect.SetParent(command)
 }
 
-func NewTransform(dx, dy float64, rect *rect.Rect, node *HtmlNode, children []Command) *Transform {
+func NewTransform(dx, dy float64, rct *rect.Rect, node *HtmlNode, children []Command) *Transform {
 	for _, child := range children {
-		rect = rect.Union(child.Rect())
+		rct = rct.Union(child.Rect())
 	}
 	return &Transform{
 		dx:           dx,
 		dy:           dy,
-		self_rect:    rect,
-		VisualEffect: *NewVisualEffect(rect, node, children),
+		self_rect:    rct,
+		VisualEffect: *NewVisualEffect(rect.NewRectEmpty(), node, children),
 	}
 }
 

@@ -202,9 +202,10 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 			l.new_line()
 		} else if element, ok := node.Token.(html.ElementToken); ok && (element.Tag == "input" || element.Tag == "button") {
 			l.input(node)
-		}
-		for _, child := range node.Children {
-			l.recurse(child)
+		} else {
+			for _, child := range node.Children {
+				l.recurse(child)
+			}
 		}
 	}
 }
@@ -390,9 +391,6 @@ func (l *TextLayout) Layout() {
 	if l.previous != nil {
 		switch t := l.previous.Layout.(type) {
 		case *TextLayout:
-			space := fnt.Measure(t.font, " ")
-			l.wrap.X = l.previous.X + space + l.previous.Width
-		case *InputLayout:
 			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		default:

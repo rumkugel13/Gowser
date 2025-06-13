@@ -543,6 +543,8 @@ func (b *Browser) composite() {
 			} else if layer.AbsoluteBounds().Intersects(html.LocalToAbsolute(cmd, cmd.Rect())) {
 				layer := html.NewCompositedLayer(cmd)
 				b.composited_layers = append(b.composited_layers, layer)
+				merged = true
+				break
 			}
 		}
 
