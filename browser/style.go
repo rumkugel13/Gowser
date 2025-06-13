@@ -30,6 +30,11 @@ func Style(node *html.HtmlNode, rules []css.Rule, tab *Tab) {
 	}
 
 	for _, rule := range rules {
+		if rule.Media != "" {
+			if (rule.Media == "dark") != tab.dark_mode {
+				continue
+			}
+		}
 		selector := rule.Selector
 		styles := rule.Body
 		if !selector.Matches(node) {

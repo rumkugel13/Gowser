@@ -151,15 +151,30 @@ func (p *CSSParser) Selector() Selector {
 
 func (p *CSSParser) Parse() []Rule {
 	rules := make([]Rule, 0)
+	var media string
 	for p.i < len(p.style) {
 		err := try.Try(func() {
 			p.whitespace()
-			selector := p.Selector()
-			p.literal('{')
-			p.whitespace()
-			body := p.Body()
-			p.literal('}')
-			rules = append(rules, *NewRule(selector, body))
+			if p.style[p.i] == '@' && media == "" {
+				prop, val := p.media_query()
+				if prop == "prefers-color-scheme" && slices.Contains([]string{"dark", "light"}, val) {
+					media = val
+				}
+				p.whitespace()
+				p.literal('{')
+				p.whitespace()
+			} else if p.style[p.i] == '}' && media != "" {
+				p.literal('}')
+				media = ""
+				p.whitespace()
+			} else {
+				selector := p.Selector()
+				p.literal('{')
+				p.whitespace()
+				body := p.Body()
+				p.literal('}')
+				rules = append(rules, *NewRule(media, selector, body))
+			}
 		})
 		if err != nil {
 			why := p.ignore_until('}')
@@ -172,4 +187,19 @@ func (p *CSSParser) Parse() []Rule {
 		}
 	}
 	return rules
+}
+
+func (p *CSSParser) media_query() (string, string) {
+	p.literal('@')
+	word := p.word()
+	if word != "media" {
+		panic("unsupported media query: " + word)
+	}
+	p.whitespace()
+	p.literal('(')
+	p.whitespace()
+	prop, val := p.pair(')')
+	p.whitespace()
+	p.literal(')')
+	return prop, val
 }
