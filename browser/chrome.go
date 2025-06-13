@@ -2,8 +2,8 @@ package browser
 
 import (
 	"fmt"
-	"gowser/html"
 	fnt "gowser/font"
+	"gowser/html"
 	"gowser/rect"
 	"gowser/task"
 	"gowser/url"
@@ -189,4 +189,9 @@ func (c *Chrome) enter() bool {
 
 func (c *Chrome) blur() {
 	c.focus = ""
+}
+
+func (c *Chrome) focus_addressbar() {
+	c.focus = "address bar"
+	c.address_bar = ""
 }

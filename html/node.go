@@ -3,6 +3,7 @@ package html
 import (
 	"fmt"
 	"gowser/animate"
+	"strconv"
 	"strings"
 )
 
@@ -38,4 +39,24 @@ func TreeToList(tree *HtmlNode) []*HtmlNode {
 		list = append(list, TreeToList(child)...)
 	}
 	return list
+}
+
+func GetTabIndex(node *HtmlNode) int {
+	var tabIndex int
+	if element, ok := node.Token.(ElementToken); ok {
+		if val, ok := element.Attributes["tabindex"]; ok {
+			iVal, err := strconv.Atoi(val)
+			if err != nil {
+				iVal = 9999999
+			}
+			tabIndex = iVal
+		} else {
+			tabIndex = 9999999
+		}
+	}
+	if tabIndex == 0 {
+		return 9999999
+	} else {
+		return tabIndex
+	}
 }

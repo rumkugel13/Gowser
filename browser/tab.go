@@ -62,6 +62,7 @@ func NewTab(browser *Browser, tab_height float64) *Tab {
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
+	t.focus = nil
 	t.zoom = 1
 	t.scroll = 0
 	t.scroll_changed_in_tab = true
@@ -175,12 +176,7 @@ func (t *Tab) links(nodes *html.HtmlNode) []string {
 
 func (t *Tab) click(x, y float64) {
 	t.Render()
-	if t.focus != nil {
-		tok := t.focus.Token.(html.ElementToken)
-		tok.IsFocused = false
-		t.focus.Token = tok
-	}
-	t.focus = nil
+	t.focus_element(nil)
 
 	y += t.scroll
 	loc_rect := rect.NewRect(x, y, x+1, y+1)
@@ -200,31 +196,13 @@ func (t *Tab) click(x, y float64) {
 		return
 	}
 	for elt != nil {
-		element, ok := elt.Token.(html.ElementToken)
+		_, ok := elt.Token.(html.ElementToken)
 		if !ok {
 			// pass, text token
-		} else if element.Tag == "a" && element.Attributes["href"] != "" {
-			url := t.url.Resolve(element.Attributes["href"])
-			t.Load(url, "")
+		} else if is_focusable(elt) {
+			t.focus_element(elt)
+			t.activate_element(elt)
 			return
-		} else if element.Tag == "input" {
-			t.focus = elt
-
-			tok := elt.Token.(html.ElementToken)
-			tok.Attributes["value"] = ""
-			tok.IsFocused = true
-			elt.Token = tok
-
-			t.SetNeedsRender()
-			return
-		} else if element.Tag == "button" {
-			for elt.Parent != nil {
-				if elt.Token.(html.ElementToken).Tag == "form" && elt.Token.(html.ElementToken).Attributes["action"] != "" {
-					t.submit_form(elt)
-					return
-				}
-				elt = elt.Parent
-			}
 		}
 		elt = elt.Parent
 	}
@@ -352,7 +330,10 @@ func (t *Tab) SetNeedsPaint() {
 }
 
 func (t *Tab) keypress(char rune) {
-	if t.focus != nil {
+	if t.focus != nil && t.focus.Token.(html.ElementToken).Tag == "input" {
+		if t.focus.Token.(html.ElementToken).Attributes["value"] == "" {
+			t.activate_element(t.focus)
+		}
 		if t.js.DispatchEvent("keydown", t.focus) {
 			return
 		}
@@ -362,7 +343,10 @@ func (t *Tab) keypress(char rune) {
 }
 
 func (t *Tab) backspace() {
-	if t.focus != nil {
+	if t.focus != nil && t.focus.Token.(html.ElementToken).Tag == "input" {
+		if t.focus.Token.(html.ElementToken).Attributes["value"] == "" {
+			t.activate_element(t.focus)
+		}
 		if t.js.DispatchEvent("keydown", t.focus) {
 			return
 		}
@@ -396,6 +380,85 @@ func (t *Tab) submit_form(elt *html.HtmlNode) {
 
 	url := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
 	t.Load(url, body)
+}
+
+func (t *Tab) advance_tab() {
+	focusable_nodes := []*html.HtmlNode{}
+	for _, node := range html.TreeToList(t.Nodes) {
+		if _, ok := node.Token.(html.ElementToken); ok && is_focusable(node) {
+			focusable_nodes = append(focusable_nodes, node)
+		}
+	}
+	sort.SliceStable(focusable_nodes, func(i, j int) bool {
+		return html.GetTabIndex(focusable_nodes[i]) < html.GetTabIndex(focusable_nodes[j])
+	})
+
+	idx := 0
+	if slices.Contains(focusable_nodes, t.focus) {
+		idx = slices.Index(focusable_nodes, t.focus) + 1
+	}
+
+	if idx < len(focusable_nodes) {
+		t.focus = focusable_nodes[idx]
+	} else {
+		t.focus = nil
+		t.browser.FocusAddressbar()
+	}
+	t.SetNeedsRender()
+}
+
+func is_focusable(node *html.HtmlNode) bool {
+	if html.GetTabIndex(node) < 0 {
+		return false
+	} else if _, ok := node.Token.(html.ElementToken).Attributes["tabindex"]; ok {
+		return true
+	} else {
+		return slices.Contains([]string{"input", "button", "a"}, node.Token.(html.ElementToken).Tag)
+	}
+}
+
+func (t *Tab) enter() {
+	if t.focus == nil {
+		return
+	}
+	if t.js.DispatchEvent("click", t.focus) {
+		return
+	}
+	t.activate_element(t.focus)
+}
+
+func (t *Tab) focus_element(node *html.HtmlNode) {
+	if t.focus != nil {
+		tok := t.focus.Token.(html.ElementToken)
+		tok.IsFocused = false
+		t.focus.Token = tok
+	}
+	t.focus = nil
+	if node != nil {
+		tok := node.Token.(html.ElementToken)
+		tok.IsFocused = true
+		node.Token = tok
+	}
+	t.SetNeedsRender()
+}
+
+func (t *Tab) activate_element(node *html.HtmlNode) {
+	elt, _ := node.Token.(html.ElementToken)
+	if elt.Tag == "input" {
+		elt.Attributes["value"] = ""
+		t.SetNeedsRender()
+	} else if elt.Tag == "a" && elt.Attributes["href"] != "" {
+		url := t.url.Resolve(elt.Attributes["href"])
+		t.Load(url, "")
+	} else if elt.Tag == "button" {
+		for node != nil {
+			elt, _ := node.Token.(html.ElementToken)
+			if elt.Tag == "form" && elt.Attributes["action"] != "" {
+				t.submit_form(node)
+			}
+			node = node.Parent
+		}
+	}
 }
 
 func (t *Tab) allowed_request(url *u.URL) bool {

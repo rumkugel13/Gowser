@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"image/draw"
 	"os"
+	"slices"
 	"sync"
 	"time"
 	"unsafe"
@@ -294,8 +295,44 @@ func (b *Browser) HandleEnter() {
 	b.lock.Lock()
 	if b.chrome.enter() {
 		b.SetNeedsRaster()
+	} else if b.focus == "content" {
+		task := task.NewTask(func(i ...interface{}) {
+			b.ActiveTab.enter()
+		})
+		b.ActiveTab.TaskRunner.ScheduleTask(task)
 	}
 	b.lock.Unlock()
+}
+
+func (b *Browser) HandleTab() {
+	b.focus = "content"
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.advance_tab()
+	})
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+}
+
+func (b *Browser) FocusAddressbar() {
+	b.lock.Lock()
+	b.chrome.focus_addressbar()
+	b.SetNeedsRaster()
+	b.lock.Unlock()
+}
+
+func (b *Browser) CycleTabs() {
+	b.lock.Lock()
+	active_idx := slices.Index(b.tabs, b.ActiveTab)
+	new_active_idx := (active_idx + 1) % len(b.tabs)
+	b.set_active_tab(b.tabs[new_active_idx])
+	b.lock.Unlock()
+}
+
+func (b *Browser) GoBack() {
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.go_back()
+	})
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
+	b.clear_data()
 }
 
 func (b *Browser) IncrementZoom(increment bool) {

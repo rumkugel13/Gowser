@@ -55,12 +55,27 @@ func mainloop(browser *browser.Browser) {
 							browser.ResetZoom()
 						} else if e.Keysym.Sym == sdl.K_d {
 							browser.ToggleDarkMode()
+						} else if e.Keysym.Sym == sdl.K_LEFT {
+							browser.GoBack()
+						} else if e.Keysym.Sym == sdl.K_l {
+							browser.FocusAddressbar()
+						} else if e.Keysym.Sym == sdl.K_t {
+							browser.NewTab(u.NewURL("https://browser.engineering/"))
+						} else if e.Keysym.Sym == sdl.K_TAB {
+							browser.CycleTabs()
+						} else if e.Keysym.Sym == sdl.K_q {
+							browser.HandleQuit()
+							sdl.Quit()
+							os.Exit(0)
+							break
 						}
 					} else {
 						if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {
 							ctrl_down = true
 						} else if e.Keysym.Sym == sdl.K_RETURN {
 							browser.HandleEnter()
+						} else if e.Keysym.Sym == sdl.K_TAB {
+							browser.HandleTab()
 						} else if e.Keysym.Sym == sdl.K_BACKSPACE {
 							browser.HandleBackspace()
 						} else if e.Keysym.Sym == sdl.K_UP {

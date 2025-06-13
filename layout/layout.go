@@ -513,7 +513,7 @@ func (l *InputLayout) Paint() []html.Command {
 	color := l.wrap.Node.Style["color"]
 	cmds = append(cmds, html.NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
 
-	if l.wrap.Node.Token.(html.ElementToken).IsFocused {
+	if l.wrap.Node.Token.(html.ElementToken).IsFocused && l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
 		cx := l.wrap.X + fnt.Measure(l.font, text)
 		cmds = append(cmds, html.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
 	}
