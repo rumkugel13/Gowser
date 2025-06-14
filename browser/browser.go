@@ -2,6 +2,7 @@ package browser
 
 import (
 	"fmt"
+	"gowser/accessibility"
 	"gowser/css"
 	"gowser/html"
 	"gowser/task"
@@ -68,6 +69,15 @@ type Browser struct {
 	needs_draw              bool
 	composited_updates      map[*html.HtmlNode]html.VisualEffectCommand
 	dark_mode               bool
+	accessibility_tree      *accessibility.AccessibilityNode
+	needs_accessibility     bool
+	accessibility_is_on     bool
+	has_spoken_document     bool
+	tab_focus               *html.HtmlNode
+	last_tab_focus          *html.HtmlNode
+	focus_a11y_node         *accessibility.AccessibilityNode
+	active_alerts           []*accessibility.AccessibilityNode
+	spoken_alerts           []*accessibility.AccessibilityNode
 }
 
 func NewBrowser() *Browser {
@@ -364,6 +374,21 @@ func (b *Browser) ToggleDarkMode() {
 	b.ActiveTab.TaskRunner.ScheduleTask(task)
 }
 
+func (b *Browser) ToggleAccessibility() {
+	b.lock.Lock()
+	b.accessibility_is_on = !b.accessibility_is_on
+	b.SetNeedsAccessibility()
+	b.lock.Unlock()
+}
+
+func (b *Browser) SetNeedsAccessibility() {
+	if !b.accessibility_is_on {
+		return
+	}
+	b.needs_accessibility = true
+	b.needs_draw = true
+}
+
 func (b *Browser) Commit(tab *Tab, data *CommitData) {
 	b.lock.Lock()
 	if tab == b.ActiveTab {
@@ -383,6 +408,8 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 		} else {
 			b.SetNeedsDraw()
 		}
+		b.accessibility_tree = data.accessibility_tree
+		b.tab_focus = data.focus
 	}
 	b.lock.Unlock()
 }
@@ -396,18 +423,29 @@ func (b *Browser) CompositeRasterAndDraw() {
 	b.measure.Time("raster_and_draw")
 
 	if b.needs_composite {
+		b.measure.Time("composite")
 		b.composite()
+		b.measure.Stop("composite")
 	}
 	if b.needs_raster {
+		b.measure.Time("raster")
 		b.raster_chrome()
 		b.raster_tab()
+		b.measure.Stop("raster")
 	}
 	if b.needs_draw {
+		b.measure.Time("draw")
 		b.paint_draw_list()
 		b.Draw()
+		b.measure.Stop("draw")
 	}
 
 	b.measure.Stop("raster_and_draw")
+
+	if b.needs_accessibility {
+		b.update_accessibility()
+	}
+
 	b.needs_composite = false
 	b.needs_raster = false
 	b.needs_draw = false
@@ -482,6 +520,7 @@ func (b *Browser) clear_data() {
 	b.active_tab_display_list = make([]html.Command, 0)
 	b.composited_layers = make([]*html.CompositedLayer, 0)
 	b.composited_updates = make(map[*html.HtmlNode]html.VisualEffectCommand)
+	b.accessibility_tree = nil
 }
 
 func (b *Browser) raster_tab() {
@@ -599,4 +638,80 @@ func (b *Browser) get_latest(effect html.VisualEffectCommand) html.Command {
 		return effect
 	}
 	return b.composited_updates[node]
+}
+
+func (b *Browser) update_accessibility() {
+	if b.accessibility_tree == nil {
+		return
+	}
+
+	if !b.has_spoken_document {
+		b.speak_document()
+		b.has_spoken_document = true
+	}
+
+	b.active_alerts = make([]*accessibility.AccessibilityNode, 0)
+	for _, node := range accessibility.TreeToList(b.accessibility_tree) {
+		if node.Role == "alert" {
+			b.active_alerts = append(b.active_alerts, node)
+		}
+	}
+
+	for _, alert := range b.active_alerts {
+		if !slices.Contains(b.spoken_alerts, alert) {
+			b.speak_node(alert, "New alert ")
+			b.spoken_alerts = append(b.spoken_alerts, alert)
+		}
+	}
+
+	new_spoken_alerts := make([]*accessibility.AccessibilityNode, 0)
+	for _, old_node := range b.spoken_alerts {
+		new_nodes := make([]*accessibility.AccessibilityNode, 0)
+		for _, node := range accessibility.TreeToList(b.accessibility_tree) {
+			if node.Node == old_node.Node && node.Role == "alert" {
+				new_nodes = append(new_nodes, node)
+			}
+		}
+		if len(new_nodes) > 0 {
+			new_spoken_alerts = append(new_spoken_alerts, new_nodes[0])
+		}
+	}
+	b.spoken_alerts = new_spoken_alerts
+
+	if (b.tab_focus != nil) && (b.tab_focus != b.last_tab_focus) {
+		nodes := []*accessibility.AccessibilityNode{}
+		acNodes := accessibility.TreeToList(b.accessibility_tree)
+		for _, node := range acNodes {
+			if node.Node == b.tab_focus {
+				nodes = append(nodes, node)
+			}
+		}
+		if len(nodes) > 0 {
+			b.focus_a11y_node = nodes[0]
+			b.speak_node(b.focus_a11y_node, "element focused ")
+		}
+		b.last_tab_focus = b.tab_focus
+	}
+}
+
+func (b *Browser) speak_document() {
+	text := "Here are the document contents: "
+	tree_list := accessibility.TreeToList(b.accessibility_tree)
+	for _, accessibility_node := range tree_list {
+		new_text := accessibility_node.Text
+		if new_text != "" {
+			text += "\n" + new_text
+		}
+	}
+	accessibility.SpeakText(text)
+}
+
+func (b *Browser) speak_node(node *accessibility.AccessibilityNode, text string) {
+	text += node.Text
+	if text != "" && len(node.Children) > 0 && node.Children[0].Role == "StaticText" {
+		text += " " + node.Children[0].Text
+	}
+	if text != "" {
+		accessibility.SpeakText(text)
+	}
 }

@@ -11,7 +11,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "output": "Gowser",
-            "args": ["https://browser.engineering/examples/example14-focus.html","https://browser.engineering/", "http://localhost:8000"]
+            "args": ["https://browser.engineering/examples/example14-alert-role.html","https://browser.engineering/examples/example14-focus.html","https://browser.engineering/", "http://localhost:8000"]
         }
     ]
 }

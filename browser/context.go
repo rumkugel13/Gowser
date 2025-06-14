@@ -114,6 +114,16 @@ func NewJSContext(tab *Tab) *JSContext {
 	if err != nil {
 		fmt.Println(err)
 	}
+	_, err = js.ctx.PushGlobalGoFunction("_setAttribute", func(ctx *duk.Context) int {
+		handle := ctx.GetInt(-3)
+		attr := ctx.GetString(-2)
+		value := ctx.GetString(-1)
+		js.setAttribute(handle, attr, value)
+		return 0
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
 	tab.browser.measure.Time("eval_runtime_js")
 	err = js.ctx.PevalString(RUNTIME_JS)
 	if err != nil {
@@ -198,6 +208,12 @@ func (j *JSContext) get_attribute(handle int, attribute string) string {
 	elt := j.handle_to_node[handle]
 	attr := elt.Token.(html.ElementToken).Attributes[attribute]
 	return attr
+}
+
+func (j *JSContext) setAttribute(handle int, attr, value string) {
+	elt := j.handle_to_node[handle]
+	elt.Token.(html.ElementToken).Attributes[attr] = value
+	j.tab.SetNeedsRender()
 }
 
 func (j *JSContext) innerHTML_set(handle int, s string) {

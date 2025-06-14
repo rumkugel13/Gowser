@@ -68,6 +68,8 @@ func mainloop(browser *browser.Browser) {
 							sdl.Quit()
 							os.Exit(0)
 							break
+						} else if e.Keysym.Sym == sdl.K_a {
+							browser.ToggleAccessibility()
 						}
 					} else {
 						if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {

@@ -13,6 +13,10 @@ Node.prototype.getAttribute = function (attr) {
     return _getAttribute(this.handle, attr)
 }
 
+Node.prototype.setAttribute = function(attr, value) {
+    _setAttribute(this.handle, attr, value);
+}
+
 LISTENERS = {}
 
 function Event(type) {

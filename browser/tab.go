@@ -337,8 +337,9 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 	t.composited_updates = make([]*html.HtmlNode, 0)
 
 	document_height := math.Ceil(t.document.Height + 2*layout.VSTEP)
-	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list, composited_updates)
+	commit_data := NewCommitData(t.url, scroll, document_height, t.display_list, composited_updates, t.accessibility_tree, t.focus)
 	t.display_list = make([]html.Command, 0)
+	t.accessibility_tree = nil
 	t.browser.Commit(t, commit_data)
 	t.scroll_changed_in_tab = false
 }

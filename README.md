@@ -214,9 +214,10 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [x] CSS prefers-color-scheme
     - [x] Keyboard navigation
     - [x] Indicating focus with outline
-    - [ ] Accessibility tree
-    - [ ] Screen readers
-      - [ ] Alerts
+    - [x] Accessibility tree
+    - [x] Screen readers
+      - [ ] Text-to-speech
+      - [x] Alerts
     - [ ] Voice and visual interaction
     - [ ] Exercises (optional)
       - [ ] Focus ring with good contrast
