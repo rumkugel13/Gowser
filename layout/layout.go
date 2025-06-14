@@ -152,14 +152,14 @@ func (l *BlockLayout) Paint() []html.Command {
 		if err != nil {
 			actualRadius = 0 // Default radius size if parsing fails
 		}
-		rect := html.NewDrawRRect(l.self_rect(), actualRadius, bgcolor)
+		rect := html.NewDrawRRect(l.wrap.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
 	return cmds
 }
 
 func (d *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
-	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
+	cmds = paint_visual_effects(d.wrap.Node, cmds, d.wrap.self_rect())
 	return cmds
 }
 
@@ -275,10 +275,6 @@ func (l *BlockLayout) new_line() {
 	l.wrap.children = append(l.wrap.children, new_line)
 }
 
-func (l *BlockLayout) self_rect() *rect.Rect {
-	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
-}
-
 type LineLayout struct {
 	wrap     *LayoutNode
 	previous *LayoutNode
@@ -347,6 +343,17 @@ func (l *LineLayout) Paint() []html.Command {
 }
 
 func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
+	outline_rect := rect.NewRectEmpty()
+	var outline_node *html.HtmlNode
+	for _, child := range d.wrap.children {
+		if child.Node.Parent.Token.(html.ElementToken).IsFocused {
+			outline_rect = outline_rect.Union(child.self_rect())
+			outline_node = child.Node.Parent
+		}
+	}
+	if outline_node != nil {
+		paint_outline(outline_node, &cmds, outline_rect, d.wrap.Zoom)
+	}
 	return cmds
 }
 
@@ -521,6 +528,7 @@ func (l *InputLayout) Paint() []html.Command {
 
 func (d *InputLayout) PaintEffects(cmds []html.Command) []html.Command {
 	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
+	paint_outline(d.wrap.Node, &cmds, d.self_rect(), d.wrap.Zoom)
 	return cmds
 }
 
@@ -611,4 +619,11 @@ func paint_visual_effects(node *html.HtmlNode, cmds []html.Command, rect *rect.R
 // css pixel -> device pixel
 func dpx(css_px, zoom float64) float64 {
 	return css_px * zoom
+}
+
+func paint_outline(node *html.HtmlNode, cmds *[]html.Command, rct *rect.Rect, zoom float64) {
+	if !node.Token.(html.ElementToken).IsFocused {
+		return
+	}
+	*cmds = append(*cmds, html.NewDrawOutline(rct, "black", 1))
 }

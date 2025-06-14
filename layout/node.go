@@ -37,3 +37,7 @@ func AbsoluteBoundsForObj(obj *LayoutNode) *rect.Rect {
 	}
 	return rect
 }
+
+func (l *LayoutNode) self_rect() *rect.Rect {
+	return rect.NewRect(l.X, l.Y, l.X+l.Width, l.Y+l.Height)
+}
