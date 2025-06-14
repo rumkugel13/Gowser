@@ -59,3 +59,32 @@ func (s *DescendantSelector) Matches(node *html.HtmlNode) bool {
 func (s *DescendantSelector) Priority() int {
 	return s.priority
 }
+
+type PseudoclassSelector struct {
+	pseudoclass string
+	base        Selector
+	priority    int
+}
+
+func NewPseudoclassSelector(pseudoclass string, base Selector) *PseudoclassSelector {
+	return &PseudoclassSelector{
+		pseudoclass: pseudoclass,
+		base:        base,
+		priority:    base.Priority(),
+	}
+}
+
+func (s *PseudoclassSelector) Matches(node *html.HtmlNode) bool {
+	if !s.base.Matches(node) {
+		return false
+	}
+	if s.pseudoclass == "focus" {
+		return node.Token.(html.ElementToken).IsFocused
+	} else {
+		return false
+	}
+}
+
+func (s *PseudoclassSelector) Priority() int {
+	return s.priority
+}

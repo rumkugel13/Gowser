@@ -137,12 +137,40 @@ func ParseTransform(value string) (float64, float64) {
 	return xVal, yVal
 }
 
-func (p *CSSParser) Selector() Selector {
+func ParseOutline(outline_str string) (int, string) {
+	// note: better error value?
+	if outline_str == "" {
+		return 0, ""
+	}
+	values := strings.Fields(outline_str)
+	if len(values) != 3 {
+		return 0, ""
+	}
+	if values[1] != "solid" {
+		return 0, ""
+	}
+	iVal, err := strconv.Atoi(strings.TrimSuffix(values[0], "px"))
+	if err != nil {
+		return 0, ""
+	}
+	return iVal, values[2]
+}
+
+func (p *CSSParser) simple_selector() Selector {
 	var out Selector = NewTagSelector(strings.ToLower(p.word()))
+	if p.i < len(p.style) && p.style[p.i] == ':' {
+		p.literal(':')
+		pseudoclass := strings.ToLower(p.word())
+		out = NewPseudoclassSelector(pseudoclass, out)
+	}
+	return out
+}
+
+func (p *CSSParser) Selector() Selector {
+	out := p.simple_selector()
 	p.whitespace()
 	for p.i < len(p.style) && p.style[p.i] != '{' {
-		tag := p.word()
-		descendant := NewTagSelector(strings.ToLower(tag))
+		descendant := p.simple_selector()
 		out = NewDescendantSelector(out, descendant)
 		p.whitespace()
 	}

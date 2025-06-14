@@ -346,7 +346,9 @@ func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 	outline_rect := rect.NewRectEmpty()
 	var outline_node *html.HtmlNode
 	for _, child := range d.wrap.children {
-		if child.Node.Parent.Token.(html.ElementToken).IsFocused {
+		outline_str := child.Node.Parent.Style["outline"]
+		thickness, color := css.ParseOutline(outline_str)
+		if thickness != 0 && color != "" {
 			outline_rect = outline_rect.Union(child.self_rect())
 			outline_node = child.Node.Parent
 		}
@@ -622,8 +624,9 @@ func dpx(css_px, zoom float64) float64 {
 }
 
 func paint_outline(node *html.HtmlNode, cmds *[]html.Command, rct *rect.Rect, zoom float64) {
-	if !node.Token.(html.ElementToken).IsFocused {
+	thickness, color := css.ParseOutline(node.Style["outline"])
+	if thickness == 0 || color == "" {
 		return
 	}
-	*cmds = append(*cmds, html.NewDrawOutline(rct, "black", 1))
+	*cmds = append(*cmds, html.NewDrawOutline(rct, color, dpx(float64(thickness), zoom)))
 }
