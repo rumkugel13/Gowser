@@ -11,6 +11,7 @@ import (
 
 const (
 	SHOW_COMPOSITED_LAYER_BORDERS = true
+	PRINT_DISPLAY_LIST            = false
 )
 
 type CompositedLayer struct {
@@ -35,6 +36,10 @@ func (c *CompositedLayer) Raster() {
 
 	if c.surface == nil {
 		c.surface = gg.NewContext(irect.Dx(), irect.Dy())
+	}
+
+	if PRINT_DISPLAY_LIST {
+		PrintCommands(c.DisplayItems, 0)
 	}
 
 	canvas := c.surface // same thing in gg
