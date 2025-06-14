@@ -89,7 +89,7 @@ func (r *Rect) ContainsPoint(x, y float64) bool {
 }
 
 func (r *Rect) String() string {
-	return fmt.Sprintf("Rect(left=%f, top=%f, right=%f, bottom=%f)", r.Left, r.Top, r.Right, r.Bottom)
+	return fmt.Sprintf("Rect(left=%.2f, top=%.2f, right=%.2f, bottom=%.2f)", r.Left, r.Top, r.Right, r.Bottom)
 }
 
 func (r *Rect) Clone() *Rect {
