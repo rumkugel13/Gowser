@@ -209,5 +209,26 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Opacity plus draw
 
 14. Making Content Accessible
+    - [x] Zoom
+    - [x] Dark mode
+      - [x] CSS prefers-color-scheme
+    - [x] Keyboard navigation
+    - [x] Indicating focus with outline
+    - [ ] Accessibility tree
+    - [ ] Screen readers
+      - [ ] Alerts
+    - [ ] Voice and visual interaction
+    - [ ] Exercises (optional)
+      - [ ] Focus ring with good contrast
+      - [ ] Focus method and events
+      - [ ] Highlighting elements during read
+      - [ ] Width media queries
+      - [ ] Mixed inlines
+      - [ ] Threaded accessibility
+      - [ ] High-contrast mode
+      - [ ] focus-visible
+      - [ ] OS integration
+      - [ ] The zoom CSS property
+
 15. Supporting Embedded Content
 16. Reusing Previous Computation
