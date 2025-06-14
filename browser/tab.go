@@ -23,6 +23,7 @@ const (
 	SCROLL_STEP           = 100.
 	PRINT_DISPLAY_LIST    = false
 	PRINT_DOCUMENT_LAYOUT = false
+	PRINT_HTML_TREE       = false
 )
 
 type Tab struct {
@@ -89,7 +90,9 @@ func (t *Tab) Load(url *u.URL, payload string) {
 
 	start = time.Now()
 	t.Nodes = html.NewHTMLParser(body).Parse()
-	// t.Nodes.PrintTree(0)
+	if PRINT_HTML_TREE {
+		t.Nodes.PrintTree(0)
+	}
 	fmt.Println("Parsing took:", time.Since(start))
 
 	start = time.Now()
