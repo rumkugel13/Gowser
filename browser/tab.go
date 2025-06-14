@@ -47,6 +47,7 @@ type Tab struct {
 	composited_updates    []*html.HtmlNode
 	zoom                  float64
 	dark_mode             bool
+	needs_focus_scroll    bool
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -302,6 +303,11 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 
 	t.Render()
 
+	if t.needs_focus_scroll && t.focus != nil {
+		t.scroll_to(t.focus)
+	}
+	t.needs_focus_scroll = false
+
 	scroll = nil
 	if t.scroll_changed_in_tab {
 		scroll = &t.scroll
@@ -321,6 +327,28 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 	t.display_list = make([]html.Command, 0)
 	t.browser.Commit(t, commit_data)
 	t.scroll_changed_in_tab = false
+}
+
+func (t *Tab) scroll_to(elt *html.HtmlNode) {
+	layoutNodes := layout.TreeToList(t.document)
+	objIdx := slices.IndexFunc(layoutNodes, func(obj *layout.LayoutNode) bool {
+		// note: use elt here?
+		return obj.Node == t.focus
+	})
+	if objIdx == -1 {
+		return
+	}
+
+	obj := layoutNodes[objIdx]
+	if t.scroll < obj.Y && obj.Y < t.scroll+t.tab_height {
+		return
+	}
+
+	// note: look at clamp_scroll
+	// document_height := math.Ceil(t.document.Height + 2*layout.VSTEP)
+	new_scroll := obj.Y - SCROLL_STEP
+	t.scroll = t.clamp_scroll(new_scroll)
+	t.scroll_changed_in_tab = true
 }
 
 func (t *Tab) SetNeedsRender() {
@@ -438,6 +466,9 @@ func (t *Tab) enter() {
 }
 
 func (t *Tab) focus_element(node *html.HtmlNode) {
+	if node != nil && node != t.focus {
+		t.needs_focus_scroll = true
+	}
 	if t.focus != nil {
 		tok := t.focus.Token.(html.ElementToken)
 		tok.IsFocused = false
