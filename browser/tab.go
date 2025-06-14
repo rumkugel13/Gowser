@@ -18,9 +18,11 @@ import (
 )
 
 const (
-	WIDTH       = 800.
-	HEIGHT      = 600.
-	SCROLL_STEP = 100.
+	WIDTH                 = 800.
+	HEIGHT                = 600.
+	SCROLL_STEP           = 100.
+	PRINT_DISPLAY_LIST    = false
+	PRINT_DOCUMENT_LAYOUT = false
 )
 
 type Tab struct {
@@ -240,7 +242,9 @@ func (t *Tab) Render() {
 		start := time.Now()
 		t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
 		t.document.Layout.(*layout.DocumentLayout).LayoutWithZoom(t.zoom)
-		// layout.PrintTree(t.document, 0)
+		if PRINT_DOCUMENT_LAYOUT {
+			layout.PrintTree(t.document, 0)
+		}
 		fmt.Println("Layout took:", time.Since(start))
 		t.needs_paint = true
 		t.needs_layout = false
@@ -250,7 +254,9 @@ func (t *Tab) Render() {
 		start := time.Now()
 		t.display_list = make([]html.Command, 0)
 		layout.PaintTree(t.document, &t.display_list)
-		// html.PrintCommands(t.display_list, 0)
+		if PRINT_DISPLAY_LIST {
+			html.PrintCommands(t.display_list, 0)
+		}
 		fmt.Println("Paint took:", time.Since(start))
 		t.needs_paint = false
 	}
