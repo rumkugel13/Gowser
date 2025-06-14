@@ -40,6 +40,8 @@ func mainloop(browser *browser.Browser) {
 					continue
 				}
 				browser.HandleClick(e)
+			case *sdl.MouseMotionEvent:
+				browser.HandleHover(float64(e.X), float64(e.Y))
 			case *sdl.KeyboardEvent:
 				if e.State == sdl.RELEASED {
 					if e.Keysym.Sym == sdl.K_RCTRL || e.Keysym.Sym == sdl.K_LCTRL {

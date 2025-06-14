@@ -9,12 +9,13 @@ import (
 )
 
 type HtmlNode struct {
-	Token      Token
-	Children   []*HtmlNode
-	Parent     *HtmlNode
-	Style      map[string]string
-	Animations map[string]animate.Animation
-	BlendOp    VisualEffectCommand
+	Token        Token
+	Children     []*HtmlNode
+	Parent       *HtmlNode
+	Style        map[string]string
+	Animations   map[string]animate.Animation
+	BlendOp      VisualEffectCommand
+	LayoutObject any // layout.LayoutNode
 }
 
 func NewNode(token Token, parent *HtmlNode) *HtmlNode {

@@ -218,7 +218,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Screen readers
       - [ ] Text-to-speech
       - [x] Alerts
-    - [ ] Voice and visual interaction
+    - [X] Voice and visual interaction
     - [ ] Exercises (optional)
       - [ ] Focus ring with good contrast
       - [ ] Focus method and events

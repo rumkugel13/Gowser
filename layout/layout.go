@@ -49,7 +49,7 @@ func NewDocumentLayout() *DocumentLayout {
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
 	d.Wrapper.Zoom = zoom
 	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper)
-	d.Wrapper.children = append(d.Wrapper.children, child)
+	d.Wrapper.Children = append(d.Wrapper.Children, child)
 
 	d.Wrapper.Width = WIDTH - 2*dpx(HSTEP, d.Wrapper.Zoom)
 	d.Wrapper.X = dpx(HSTEP, d.Wrapper.Zoom)
@@ -98,21 +98,21 @@ func NewBlockLayout(previous *LayoutNode) *BlockLayout {
 }
 
 func (l *BlockLayout) Layout() {
-	l.wrap.Zoom = l.wrap.parent.Zoom
+	l.wrap.Zoom = l.wrap.Parent.Zoom
 	if l.previous != nil {
 		l.wrap.Y = l.previous.Y + l.previous.Height
 	} else {
-		l.wrap.Y = l.wrap.parent.Y
+		l.wrap.Y = l.wrap.Parent.Y
 	}
-	l.wrap.X = l.wrap.parent.X
-	l.wrap.Width = l.wrap.parent.Width
+	l.wrap.X = l.wrap.Parent.X
+	l.wrap.Width = l.wrap.Parent.Width
 
 	mode := l.layout_mode()
 	if mode == "block" {
 		var previous *LayoutNode
 		for _, child := range l.wrap.Node.Children {
 			next := NewLayoutNode(NewBlockLayout(previous), child, l.wrap)
-			l.wrap.children = append(l.wrap.children, next)
+			l.wrap.Children = append(l.wrap.Children, next)
 			previous = next
 		}
 	} else {
@@ -120,12 +120,12 @@ func (l *BlockLayout) Layout() {
 		l.recurse(l.wrap.Node)
 	}
 
-	for _, child := range l.wrap.children {
+	for _, child := range l.wrap.Children {
 		child.Layout.Layout()
 	}
 
 	var totalHeight float64
-	for _, child := range l.wrap.children {
+	for _, child := range l.wrap.Children {
 		totalHeight += child.Height
 	}
 	l.wrap.Height = totalHeight
@@ -228,13 +228,13 @@ func (l *BlockLayout) word(node *html.HtmlNode, word string) {
 		l.new_line()
 	}
 
-	line := l.wrap.children[len(l.wrap.children)-1]
+	line := l.wrap.Children[len(l.wrap.Children)-1]
 	var previous_word *LayoutNode
-	if len(line.children) > 0 {
-		previous_word = line.children[len(line.children)-1]
+	if len(line.Children) > 0 {
+		previous_word = line.Children[len(line.Children)-1]
 	}
 	text := NewLayoutNode(NewTextLayout(word, previous_word), node, line)
-	line.children = append(line.children, text)
+	line.Children = append(line.Children, text)
 	l.cursor_x += width + fnt.Measure(font, " ")
 }
 
@@ -243,13 +243,13 @@ func (l *BlockLayout) input(node *html.HtmlNode) {
 	if l.cursor_x+w > l.wrap.Width {
 		l.new_line()
 	}
-	line := l.wrap.children[len(l.wrap.children)-1]
+	line := l.wrap.Children[len(l.wrap.Children)-1]
 	var previous_word *LayoutNode
-	if len(line.children) > 0 {
-		previous_word = line.children[len(line.children)-1]
+	if len(line.Children) > 0 {
+		previous_word = line.Children[len(line.Children)-1]
 	}
 	input := NewLayoutNode(NewInputLayout(previous_word), node, line)
-	line.children = append(line.children, input)
+	line.Children = append(line.Children, input)
 
 	weight := node.Style["font-weight"]
 	style := node.Style["font-style"]
@@ -268,11 +268,11 @@ func (l *BlockLayout) input(node *html.HtmlNode) {
 func (l *BlockLayout) new_line() {
 	l.cursor_x = 0
 	var last_line *LayoutNode
-	if len(l.wrap.children) > 0 {
-		last_line = l.wrap.children[len(l.wrap.children)-1]
+	if len(l.wrap.Children) > 0 {
+		last_line = l.wrap.Children[len(l.wrap.Children)-1]
 	}
 	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap)
-	l.wrap.children = append(l.wrap.children, new_line)
+	l.wrap.Children = append(l.wrap.Children, new_line)
 }
 
 type LineLayout struct {
@@ -287,22 +287,22 @@ func NewLineLayout(previous *LayoutNode) *LineLayout {
 }
 
 func (l *LineLayout) Layout() {
-	l.wrap.Zoom = l.wrap.parent.Zoom
-	l.wrap.Width = l.wrap.parent.Width
-	l.wrap.X = l.wrap.parent.X
+	l.wrap.Zoom = l.wrap.Parent.Zoom
+	l.wrap.Width = l.wrap.Parent.Width
+	l.wrap.X = l.wrap.Parent.X
 
 	if l.previous != nil {
 		l.wrap.Y = l.previous.Y + l.previous.Height
 	} else {
-		l.wrap.Y = l.wrap.parent.Y
+		l.wrap.Y = l.wrap.Parent.Y
 	}
 
-	for _, word := range l.wrap.children {
+	for _, word := range l.wrap.Children {
 		word.Layout.Layout()
 	}
 
 	var maxAscent float64
-	for _, item := range l.wrap.children {
+	for _, item := range l.wrap.Children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
 			maxAscent = max(maxAscent, fnt.Ascent(l.font))
@@ -312,7 +312,7 @@ func (l *LineLayout) Layout() {
 	}
 
 	baseline := l.wrap.Y + 1.25*maxAscent
-	for _, item := range l.wrap.children {
+	for _, item := range l.wrap.Children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
 			item.Y = baseline - fnt.Ascent(l.font)
@@ -322,7 +322,7 @@ func (l *LineLayout) Layout() {
 	}
 
 	var maxDescent float64
-	for _, item := range l.wrap.children {
+	for _, item := range l.wrap.Children {
 		switch l := item.Layout.(type) {
 		case *TextLayout:
 			maxDescent = max(maxDescent, fnt.Descent(l.font))
@@ -345,7 +345,7 @@ func (l *LineLayout) Paint() []html.Command {
 func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 	outline_rect := rect.NewRectEmpty()
 	var outline_node *html.HtmlNode
-	for _, child := range d.wrap.children {
+	for _, child := range d.wrap.Children {
 		outline_str := child.Node.Parent.Style["outline"]
 		thickness, color := css.ParseOutline(outline_str)
 		if thickness != 0 && color != "" {
@@ -382,7 +382,7 @@ func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
 }
 
 func (l *TextLayout) Layout() {
-	l.wrap.Zoom = l.wrap.parent.Zoom
+	l.wrap.Zoom = l.wrap.Parent.Zoom
 	weight := l.wrap.Node.Style["font-weight"]
 	style := l.wrap.Node.Style["font-style"]
 	if style == "normal" {
@@ -403,10 +403,10 @@ func (l *TextLayout) Layout() {
 			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		default:
-			l.wrap.X = l.wrap.parent.X
+			l.wrap.X = l.wrap.Parent.X
 		}
 	} else {
-		l.wrap.X = l.wrap.parent.X
+		l.wrap.X = l.wrap.Parent.X
 	}
 
 	l.wrap.Height = fnt.Linespace(l.font)
@@ -446,7 +446,7 @@ func NewInputLayout(previous *LayoutNode) *InputLayout {
 }
 
 func (l *InputLayout) Layout() {
-	l.wrap.Zoom = l.wrap.parent.Zoom
+	l.wrap.Zoom = l.wrap.Parent.Zoom
 	weight := l.wrap.Node.Style["font-weight"]
 	style := l.wrap.Node.Style["font-style"]
 	if style == "normal" {
@@ -470,10 +470,10 @@ func (l *InputLayout) Layout() {
 			space := fnt.Measure(t.font, " ")
 			l.wrap.X = l.previous.X + space + l.previous.Width
 		default:
-			l.wrap.X = l.wrap.parent.X
+			l.wrap.X = l.wrap.Parent.X
 		}
 	} else {
-		l.wrap.X = l.wrap.parent.X
+		l.wrap.X = l.wrap.Parent.X
 	}
 
 	l.wrap.Height = fnt.Linespace(l.font)
@@ -551,7 +551,7 @@ func PaintTree(l *LayoutNode, displayList *[]html.Command) {
 	if l.Layout.ShouldPaint() {
 		cmds = l.Layout.Paint()
 	}
-	for _, child := range l.children {
+	for _, child := range l.Children {
 		PaintTree(child, &cmds)
 	}
 
@@ -563,14 +563,14 @@ func PaintTree(l *LayoutNode, displayList *[]html.Command) {
 
 func PrintTree(l *LayoutNode, indent int) {
 	fmt.Println(strings.Repeat(" ", indent) + l.Layout.String())
-	for _, child := range l.children {
+	for _, child := range l.Children {
 		PrintTree(child, indent+2)
 	}
 }
 
 func TreeToList(tree *LayoutNode) []*LayoutNode {
 	list := []*LayoutNode{tree}
-	for _, child := range tree.children {
+	for _, child := range tree.Children {
 		list = append(list, TreeToList(child)...)
 	}
 	return list

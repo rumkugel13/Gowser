@@ -42,42 +42,45 @@ func init() {
 }
 
 type Browser struct {
-	tabs                    []*Tab
-	ActiveTab               *Tab
-	sdl_window              *sdl.Window
-	root_surface            *gg.Context
-	chrome                  *Chrome
-	focus                   string
-	RED_MASK                uint32
-	GREEN_MASK              uint32
-	BLUE_MASK               uint32
-	ALPHA_MASK              uint32
-	chrome_surface          *gg.Context
-	tab_surface             *gg.Context
-	animation_timer         *time.Timer
-	needs_animation_frame   bool
-	measure                 *trace.MeasureTime
-	lock                    *sync.Mutex
-	active_tab_url          *url.URL
-	active_tab_scroll       float64
-	active_tab_height       float64
-	active_tab_display_list []html.Command
-	composited_layers       []*html.CompositedLayer
-	draw_list               []html.Command
-	needs_composite         bool
-	needs_raster            bool
-	needs_draw              bool
-	composited_updates      map[*html.HtmlNode]html.VisualEffectCommand
-	dark_mode               bool
-	accessibility_tree      *accessibility.AccessibilityNode
-	needs_accessibility     bool
-	accessibility_is_on     bool
-	has_spoken_document     bool
-	tab_focus               *html.HtmlNode
-	last_tab_focus          *html.HtmlNode
-	focus_a11y_node         *accessibility.AccessibilityNode
-	active_alerts           []*accessibility.AccessibilityNode
-	spoken_alerts           []*accessibility.AccessibilityNode
+	tabs                     []*Tab
+	ActiveTab                *Tab
+	sdl_window               *sdl.Window
+	root_surface             *gg.Context
+	chrome                   *Chrome
+	focus                    string
+	RED_MASK                 uint32
+	GREEN_MASK               uint32
+	BLUE_MASK                uint32
+	ALPHA_MASK               uint32
+	chrome_surface           *gg.Context
+	tab_surface              *gg.Context
+	animation_timer          *time.Timer
+	needs_animation_frame    bool
+	measure                  *trace.MeasureTime
+	lock                     *sync.Mutex
+	active_tab_url           *url.URL
+	active_tab_scroll        float64
+	active_tab_height        float64
+	active_tab_display_list  []html.Command
+	composited_layers        []*html.CompositedLayer
+	draw_list                []html.Command
+	needs_composite          bool
+	needs_raster             bool
+	needs_draw               bool
+	composited_updates       map[*html.HtmlNode]html.VisualEffectCommand
+	dark_mode                bool
+	accessibility_tree       *accessibility.AccessibilityNode
+	needs_accessibility      bool
+	accessibility_is_on      bool
+	has_spoken_document      bool
+	tab_focus                *html.HtmlNode
+	last_tab_focus           *html.HtmlNode
+	focus_a11y_node          *accessibility.AccessibilityNode
+	active_alerts            []*accessibility.AccessibilityNode
+	spoken_alerts            []*accessibility.AccessibilityNode
+	pending_hover            *gg.Point
+	hovered_a11y_node        *accessibility.AccessibilityNode
+	needs_speak_hovered_node bool
 }
 
 func NewBrowser() *Browser {
@@ -269,6 +272,14 @@ func (b *Browser) HandleClick(e *sdl.MouseButtonEvent) {
 		b.ActiveTab.TaskRunner.ScheduleTask(task)
 	}
 	b.lock.Unlock()
+}
+
+func (b *Browser) HandleHover(eventX, eventY float64) {
+	if !b.accessibility_is_on || b.accessibility_tree == nil {
+		return
+	}
+	b.pending_hover = &gg.Point{X: eventX, Y: eventY - b.chrome.bottom}
+	b.SetNeedsAccessibility()
 }
 
 func (b *Browser) HandleKey(e *sdl.TextInputEvent) {
@@ -627,6 +638,30 @@ func (b *Browser) paint_draw_list() {
 			b.draw_list = append(b.draw_list, current_effect)
 		}
 	}
+
+	if b.pending_hover != nil {
+		x, y := b.pending_hover.X, b.pending_hover.Y
+		y += b.active_tab_scroll
+		a11y_node := b.accessibility_tree.HitTest(x, y)
+
+		if a11y_node != nil {
+			if b.hovered_a11y_node == nil || a11y_node.Node != b.hovered_a11y_node.Node {
+				b.needs_speak_hovered_node = true
+			}
+			b.hovered_a11y_node = a11y_node
+		}
+	}
+	b.pending_hover = nil
+
+	if b.accessibility_is_on && b.hovered_a11y_node != nil {
+		color := "black"
+		if b.dark_mode {
+			color = "white"
+		}
+		for _, bound := range b.hovered_a11y_node.Bounds {
+			b.draw_list = append(b.draw_list, html.NewDrawOutline(bound, color, 2))
+		}
+	}
 }
 
 func (b *Browser) get_latest(effect html.VisualEffectCommand) html.Command {
@@ -692,6 +727,11 @@ func (b *Browser) update_accessibility() {
 		}
 		b.last_tab_focus = b.tab_focus
 	}
+
+	if b.needs_speak_hovered_node {
+		b.speak_node(b.hovered_a11y_node, "Hit test ")
+	}
+	b.needs_speak_hovered_node = false
 }
 
 func (b *Browser) speak_document() {

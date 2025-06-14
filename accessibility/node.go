@@ -3,6 +3,8 @@ package accessibility
 import (
 	"fmt"
 	"gowser/html"
+	"gowser/layout"
+	"gowser/rect"
 	"strings"
 )
 
@@ -11,6 +13,7 @@ type AccessibilityNode struct {
 	Children []*AccessibilityNode
 	Role     string
 	Text     string
+	Bounds   []*rect.Rect
 }
 
 func NewAccessibilityNode(node *html.HtmlNode) *AccessibilityNode {
@@ -19,6 +22,7 @@ func NewAccessibilityNode(node *html.HtmlNode) *AccessibilityNode {
 		Children: make([]*AccessibilityNode, 0),
 		Text:     "",
 	}
+	a.Bounds = a.compute_bounds()
 
 	if _, isText := node.Token.(html.TextToken); isText {
 		if html.IsFocusable(node.Parent) {
@@ -49,6 +53,29 @@ func NewAccessibilityNode(node *html.HtmlNode) *AccessibilityNode {
 
 func (a *AccessibilityNode) String() string {
 	return fmt.Sprint("AccessibilityNode(role='", a.Role, "', text='", a.Text, "')")
+}
+
+func (a *AccessibilityNode) ContainsPoint(x, y float64) bool {
+	for _, bound := range a.Bounds {
+		if bound.ContainsPoint(x, y) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *AccessibilityNode) HitTest(x, y float64) *AccessibilityNode {
+	var node *AccessibilityNode
+	if a.ContainsPoint(x, y) {
+		node = a
+	}
+	for _, child := range a.Children {
+		res := child.HitTest(x, y)
+		if res != nil {
+			node = res
+		}
+	}
+	return node
 }
 
 func (a *AccessibilityNode) Build() {
@@ -100,6 +127,35 @@ func (a *AccessibilityNode) build_internal(child_node *html.HtmlNode) {
 			a.build_internal(grandchild_node)
 		}
 	}
+}
+
+func (a *AccessibilityNode) compute_bounds() []*rect.Rect {
+	if a.Node.LayoutObject != nil {
+		return []*rect.Rect{layout.AbsoluteBoundsForObj(a.Node.LayoutObject.(*layout.LayoutNode))}
+	}
+
+	if _, ok := a.Node.Token.(html.TextToken); ok {
+		return []*rect.Rect{}
+	}
+
+	inline := a.Node.Parent
+	bounds := []*rect.Rect{}
+	for inline.LayoutObject == nil {
+		inline = inline.Parent
+	}
+
+	for _, line := range inline.LayoutObject.(*layout.LayoutNode).Children {
+		line_bounds := rect.NewRectEmpty()
+		for _, child := range line.Children {
+			if child.Node.Parent == a.Node {
+				line_bounds = line_bounds.Union(rect.NewRect(
+					child.X, child.Y, child.X+child.Width, child.Y+child.Height,
+				))
+			}
+		}
+		bounds = append(bounds, line_bounds)
+	}
+	return bounds
 }
 
 func (n *AccessibilityNode) PrintTree(indent int) {
