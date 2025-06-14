@@ -2,6 +2,7 @@ package browser
 
 import (
 	"fmt"
+	"gowser/accessibility"
 	"gowser/css"
 	"gowser/html"
 	"gowser/layout"
@@ -18,12 +19,13 @@ import (
 )
 
 const (
-	WIDTH                 = 800.
-	HEIGHT                = 600.
-	SCROLL_STEP           = 100.
-	PRINT_DISPLAY_LIST    = false
-	PRINT_DOCUMENT_LAYOUT = false
-	PRINT_HTML_TREE       = false
+	WIDTH                    = 800.
+	HEIGHT                   = 600.
+	SCROLL_STEP              = 100.
+	PRINT_DISPLAY_LIST       = false
+	PRINT_DOCUMENT_LAYOUT    = false
+	PRINT_HTML_TREE          = false
+	PRINT_ACCESSIBILITY_TREE = true
 )
 
 type Tab struct {
@@ -48,6 +50,8 @@ type Tab struct {
 	zoom                  float64
 	dark_mode             bool
 	needs_focus_scroll    bool
+	needs_accessibility   bool
+	accessibility_tree    *accessibility.AccessibilityNode
 }
 
 func NewTab(browser *Browser, tab_height float64) *Tab {
@@ -205,7 +209,7 @@ func (t *Tab) click(x, y float64) {
 		_, ok := elt.Token.(html.ElementToken)
 		if !ok {
 			// pass, text token
-		} else if is_focusable(elt) {
+		} else if html.IsFocusable(elt) {
 			t.focus_element(elt)
 			t.activate_element(elt)
 			return
@@ -250,8 +254,18 @@ func (t *Tab) Render() {
 			layout.PrintTree(t.document, 0)
 		}
 		fmt.Println("Layout took:", time.Since(start))
+		t.needs_accessibility = true
 		t.needs_paint = true
 		t.needs_layout = false
+	}
+
+	if t.needs_accessibility {
+		t.accessibility_tree = accessibility.NewAccessibilityNode(t.Nodes)
+		t.accessibility_tree.Build()
+		if PRINT_ACCESSIBILITY_TREE {
+			t.accessibility_tree.PrintTree(0)
+		}
+		t.needs_accessibility = false
 	}
 
 	if t.needs_paint {
@@ -422,7 +436,7 @@ func (t *Tab) submit_form(elt *html.HtmlNode) {
 func (t *Tab) advance_tab() {
 	focusable_nodes := []*html.HtmlNode{}
 	for _, node := range html.TreeToList(t.Nodes) {
-		if _, ok := node.Token.(html.ElementToken); ok && is_focusable(node) {
+		if _, ok := node.Token.(html.ElementToken); ok && html.IsFocusable(node) {
 			focusable_nodes = append(focusable_nodes, node)
 		}
 	}
@@ -443,16 +457,6 @@ func (t *Tab) advance_tab() {
 		t.browser.FocusAddressbar()
 	}
 	t.SetNeedsRender()
-}
-
-func is_focusable(node *html.HtmlNode) bool {
-	if html.GetTabIndex(node) < 0 {
-		return false
-	} else if _, ok := node.Token.(html.ElementToken).Attributes["tabindex"]; ok {
-		return true
-	} else {
-		return slices.Contains([]string{"input", "button", "a"}, node.Token.(html.ElementToken).Tag)
-	}
 }
 
 func (t *Tab) enter() {

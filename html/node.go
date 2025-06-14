@@ -3,6 +3,7 @@ package html
 import (
 	"fmt"
 	"gowser/animate"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -58,5 +59,15 @@ func GetTabIndex(node *HtmlNode) int {
 		return 9999999
 	} else {
 		return tabIndex
+	}
+}
+
+func IsFocusable(node *HtmlNode) bool {
+	if GetTabIndex(node) < 0 {
+		return false
+	} else if _, ok := node.Token.(ElementToken).Attributes["tabindex"]; ok {
+		return true
+	} else {
+		return slices.Contains([]string{"input", "button", "a"}, node.Token.(ElementToken).Tag)
 	}
 }
