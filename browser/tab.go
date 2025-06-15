@@ -25,7 +25,7 @@ const (
 	PRINT_DISPLAY_LIST       = false
 	PRINT_DOCUMENT_LAYOUT    = false
 	PRINT_HTML_TREE          = false
-	PRINT_ACCESSIBILITY_TREE = true
+	PRINT_ACCESSIBILITY_TREE = false
 )
 
 type Tab struct {
