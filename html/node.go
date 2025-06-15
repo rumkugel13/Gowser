@@ -3,6 +3,7 @@ package html
 import (
 	"fmt"
 	"gowser/animate"
+	"image"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ type HtmlNode struct {
 	Animations   map[string]animate.Animation
 	BlendOp      VisualEffectCommand
 	LayoutObject any // layout.LayoutNode
+	Image        image.Image
 }
 
 func NewNode(token Token, parent *HtmlNode) *HtmlNode {

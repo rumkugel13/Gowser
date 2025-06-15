@@ -151,6 +151,45 @@ func (d *DrawLine) String() string {
 	return fmt.Sprint("DrawLine(rect=", d.PaintCommand.rect, ", color='", d.color, "', thickness=", d.thickness, ")")
 }
 
+const (
+	Low_FilterQuality int = iota
+	Medium_FilterQuality
+	High_FilterQuality
+)
+
+func parse_image_rendering(quality string) int {
+	if quality == "high-quality" {
+		return High_FilterQuality
+	} else if quality == "crisp-edges" {
+		return Low_FilterQuality
+	} else {
+		return Medium_FilterQuality
+	}
+}
+
+type DrawImage struct {
+	PaintCommand
+	image   image.Image
+	quality int
+}
+
+func NewDrawImage(image image.Image, rect *rect.Rect, quality string) *DrawImage {
+	return &DrawImage{
+		PaintCommand: PaintCommand{rect: rect.Clone()},
+		image:        image,
+		quality:      parse_image_rendering(quality),
+	}
+}
+
+func (d *DrawImage) Execute(canvas *gg.Context) {
+	// note: filterquality not applicable in gg
+	canvas.DrawImage(d.image, int(d.rect.Left), int(d.rect.Top))
+}
+
+func (d *DrawImage) String() string {
+	return fmt.Sprint("DrawImage(rect=", d.PaintCommand.rect, ", quality=", d.quality, ")")
+}
+
 type DrawCompositedLayer struct {
 	PaintCommand
 	composited_layer *CompositedLayer
@@ -510,7 +549,7 @@ func CommandTreeToList(tree Command) []Command {
 
 func IsPaintCommand(cmd Command) bool {
 	switch cmd.(type) {
-	case *DrawLine, *DrawRRect, *DrawText, *DrawOutline:
+	case *DrawLine, *DrawRRect, *DrawText, *DrawOutline, *DrawImage:
 		return true // These embed PaintCommand
 	default:
 		return false

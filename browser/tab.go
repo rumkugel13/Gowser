@@ -1,6 +1,8 @@
 package browser
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
 	"gowser/accessibility"
 	"gowser/css"
@@ -10,8 +12,10 @@ import (
 	"gowser/task"
 	"gowser/try"
 	u "gowser/url"
+	"image"
 	"math"
 	urllib "net/url"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -27,6 +31,19 @@ const (
 	PRINT_HTML_TREE          = false
 	PRINT_ACCESSIBILITY_TREE = false
 )
+
+var (
+	BROKEN_IMAGE image.Image
+)
+
+func init() {
+	image_bytes, err1 := os.ReadFile("Broken_Image.png")
+	image, _, err2 := image.Decode(bytes.NewReader(image_bytes))
+	if err := cmp.Or(err1, err2); err != nil {
+		panic("Could not load broken image: " + err.Error())
+	}
+	BROKEN_IMAGE = image
+}
 
 type Tab struct {
 	display_list          []html.Command
@@ -94,7 +111,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	}
 
 	start = time.Now()
-	t.Nodes = html.NewHTMLParser(body).Parse()
+	t.Nodes = html.NewHTMLParser(string(body)).Parse()
 	if PRINT_HTML_TREE {
 		t.Nodes.PrintTree(0)
 	}
@@ -113,7 +130,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 			continue
 		}
 		fmt.Println("Loading script:", script_url)
-		var code string
+		var code []byte
 		err := try.Try(func() {
 			_, code = script_url.Request(url, "")
 		})
@@ -123,7 +140,7 @@ func (t *Tab) Load(url *u.URL, payload string) {
 			task := task.NewTask(func(i ...interface{}) {
 				start := time.Now()
 				t.browser.measure.Time("eval_" + script)
-				t.js.Run(script, code)
+				t.js.Run(script, string(code))
 				t.browser.measure.Stop("eval_" + script)
 				fmt.Println("Eval "+script+" took:", time.Since(start))
 			}, script, code)
@@ -142,17 +159,47 @@ func (t *Tab) Load(url *u.URL, payload string) {
 			continue
 		}
 		fmt.Println("Loading stylesheet:", style_url)
-		var style_body string
+		var style_body []byte
 		err := try.Try(func() {
 			_, style_body = style_url.Request(url, "")
 		})
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
 		} else {
-			t.rules = append(t.rules, css.NewCSSParser(style_body).Parse()...)
+			t.rules = append(t.rules, css.NewCSSParser(string(style_body)).Parse()...)
 		}
 	}
 	fmt.Println("Loading stylesheets took:", time.Since(start))
+
+	start = time.Now()
+	images := t.images(t.Nodes)
+	for _, img := range images {
+		elt, _ := img.Token.(html.ElementToken)
+		src := elt.Attributes["src"]
+		image_url := url.Resolve(src)
+		if !t.allowed_request(image_url) {
+			fmt.Println("Blocked image", image_url, "due to CSP")
+			continue
+		}
+		fmt.Println("Loading image:", image_url)
+		var img_body []byte
+		err := try.Try(func() {
+			_, img_body = image_url.Request(url, "")
+		})
+		if err != nil {
+			fmt.Println("Error loading image:", err)
+			img.Image = BROKEN_IMAGE
+		} else {
+			image, _, err := image.Decode(bytes.NewReader(img_body))
+			if err != nil {
+				fmt.Println("Error decoding image:", err)
+				img.Image = BROKEN_IMAGE
+			} else {
+				img.Image = image
+			}
+		}
+	}
+	fmt.Println("Loading images took:", time.Since(start))
 	t.SetNeedsRender()
 }
 
@@ -182,6 +229,17 @@ func (t *Tab) links(nodes *html.HtmlNode) []string {
 		}
 	}
 	return links
+}
+
+func (t *Tab) images(nodes *html.HtmlNode) []*html.HtmlNode {
+	flatNodes := html.TreeToList(nodes)
+	images := []*html.HtmlNode{}
+	for _, node := range flatNodes {
+		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "img" {
+			images = append(images, node)
+		}
+	}
+	return images
 }
 
 func (t *Tab) click(x, y float64) {

@@ -244,10 +244,10 @@ func (j *JSContext) xmlHttpRequest_send(method string, url string, body string, 
 	run_load := func() string {
 		_, response := full_url.Request(j.tab.url, body)
 		task := task.NewTask(func(i ...interface{}) {
-			j.dispatch_xhr_onload(response, handle)
+			j.dispatch_xhr_onload(string(response), handle)
 		}, response, handle)
 		j.tab.TaskRunner.ScheduleTask(task)
-		return response
+		return string(response)
 	}
 	if !is_async {
 		return run_load()

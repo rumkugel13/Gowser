@@ -55,7 +55,7 @@ func NewURL(url string) *URL {
 	return u
 }
 
-func (u *URL) Request(referrer *URL, payload string) (map[string]string, string) {
+func (u *URL) Request(referrer *URL, payload string) (map[string]string, []byte) {
 	// Create connection
 	conn, err := net.Dial("tcp", u.host+":"+strconv.Itoa(u.port))
 	if err != nil {
@@ -165,7 +165,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 	if err != nil {
 		panic("Failed to read response: " + err.Error())
 	}
-	return responseHeaders, string(content)
+	return responseHeaders, content
 }
 
 func (u *URL) String() string {
