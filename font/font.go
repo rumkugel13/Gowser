@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/adrg/sysfont"
 	"github.com/fogleman/gg"
@@ -11,6 +12,7 @@ import (
 
 var (
 	FONT_CACHE = map[FontKey]FontItem{}
+	LOCK       = &sync.Mutex{}
 )
 
 type FontKey struct {
@@ -43,18 +45,26 @@ func GetFont(size float64, weight, style string) fnt.Face {
 }
 
 func Measure(font fnt.Face, text string) float64 {
+	LOCK.Lock()
+	defer LOCK.Unlock()
 	return math.Ceil(float64(fnt.MeasureString(font, text)) / 64.0)
 }
 
 func Linespace(font fnt.Face) float64 {
+	LOCK.Lock()
+	defer LOCK.Unlock()
 	// note: without the scaling factor, the lines are too narrow
 	return math.Ceil(float64(font.Metrics().Height) / 64.0 * 96 / 72)
 }
 
 func Ascent(font fnt.Face) float64 {
+	LOCK.Lock()
+	defer LOCK.Unlock()
 	return float64(font.Metrics().Ascent) / 64.0
 }
 
 func Descent(font fnt.Face) float64 {
+	LOCK.Lock()
+	defer LOCK.Unlock()
 	return float64(font.Metrics().Descent) / 64.0
 }

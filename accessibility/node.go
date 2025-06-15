@@ -44,6 +44,8 @@ func NewAccessibilityNode(node *html.HtmlNode) *AccessibilityNode {
 			a.Role = "document"
 		} else if html.IsFocusable(node) {
 			a.Role = "focusable"
+		} else if elt.Tag == "img" {
+			a.Role = "image"
 		} else {
 			a.Role = "none"
 		}
@@ -110,6 +112,13 @@ func (a *AccessibilityNode) Build() {
 		a.Text = "Alert"
 	} else if a.Role == "document" {
 		a.Text = "Document"
+	} else if a.Role == "image" {
+		elt, _ := a.Node.Token.(html.ElementToken)
+		if val, ok := elt.Attributes["alt"]; ok {
+			a.Text = "Image: " + val
+		} else {
+			a.Text = "Image"
+		}
 	}
 
 	if elt, ok := a.Node.Token.(html.ElementToken); ok && elt.IsFocused {

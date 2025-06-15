@@ -164,7 +164,7 @@ func (d *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
 }
 
 func (d *BlockLayout) ShouldPaint() bool {
-	if _, ok := d.wrap.Node.Token.(html.TextToken); ok || (d.wrap.Node.Token.(html.ElementToken).Tag != "input" && d.wrap.Node.Token.(html.ElementToken).Tag != "button") {
+	if _, ok := d.wrap.Node.Token.(html.TextToken); ok || !slices.Contains([]string{"input", "button", "img"}, d.wrap.Node.Token.(html.ElementToken).Tag) {
 		return true
 	}
 	return false
@@ -183,7 +183,7 @@ func (l *BlockLayout) layout_mode() string {
 				return "block"
 			}
 		}
-		if len(l.wrap.Node.Children) > 0 || l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
+		if len(l.wrap.Node.Children) > 0 || slices.Contains([]string{"input", "img"}, l.wrap.Node.Token.(html.ElementToken).Tag) {
 			return "inline"
 		} else {
 			return "block"
@@ -198,10 +198,13 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 			l.word(node, word)
 		}
 	} else {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "br" {
+		element, _ := node.Token.(html.ElementToken)
+		if element.Tag == "br" {
 			l.new_line()
-		} else if element, ok := node.Token.(html.ElementToken); ok && (element.Tag == "input" || element.Tag == "button") {
+		} else if element.Tag == "input" || element.Tag == "button" {
 			l.input(node)
+		} else if element.Tag == "img" {
+			l.image(node)
 		} else {
 			for _, child := range node.Children {
 				l.recurse(child)
@@ -211,36 +214,30 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 }
 
 func (l *BlockLayout) word(node *html.HtmlNode, word string) {
-	weight := node.Style["font-weight"]
-	style := node.Style["font-style"]
-	if style == "normal" {
-		style = "roman"
-	}
-	fSize, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"], "px"), 32)
-	if err != nil {
-		fSize = 16 // Default font size if parsing fails
-	}
-	size := dpx(fSize*0.75, l.wrap.Zoom)
-
-	font := fnt.GetFont(size, weight, style)
-	width := fnt.Measure(font, word)
-	if l.cursor_x+width > l.wrap.Width {
-		l.new_line()
-	}
-
-	line := l.wrap.Children[len(l.wrap.Children)-1]
-	var previous_word *LayoutNode
-	if len(line.Children) > 0 {
-		previous_word = line.Children[len(line.Children)-1]
-	}
-	text := NewLayoutNode(NewTextLayout(word, previous_word), node, line)
-	line.Children = append(line.Children, text)
-	l.cursor_x += width + fnt.Measure(font, " ")
+	node_font := get_font(node.Style, l.wrap.Zoom)
+	w := fnt.Measure(node_font, word)
+	l.add_inline_child(node, w, "text", word)
 }
 
 func (l *BlockLayout) input(node *html.HtmlNode) {
 	w := dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
-	if l.cursor_x+w > l.wrap.Width {
+	l.add_inline_child(node, w, "input", "")
+}
+
+func (l *BlockLayout) image(node *html.HtmlNode) {
+	w := dpx(float64(node.Image.Bounds().Dx()), l.wrap.Zoom)
+	if val, ok := node.Token.(html.ElementToken).Attributes["width"]; ok {
+		fVal, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			fVal = float64(node.Image.Bounds().Dx())
+		}
+		w = dpx(fVal, l.wrap.Zoom)
+	}
+	l.add_inline_child(node, w, "image", "")
+}
+
+func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_class, word string) {
+	if l.cursor_x+w > l.wrap.X+l.wrap.Width {
 		l.new_line()
 	}
 	line := l.wrap.Children[len(l.wrap.Children)-1]
@@ -248,21 +245,18 @@ func (l *BlockLayout) input(node *html.HtmlNode) {
 	if len(line.Children) > 0 {
 		previous_word = line.Children[len(line.Children)-1]
 	}
-	input := NewLayoutNode(NewInputLayout(previous_word), node, line)
-	line.Children = append(line.Children, input)
-
-	weight := node.Style["font-weight"]
-	style := node.Style["font-style"]
-	if style == "normal" {
-		style = "roman"
+	var child *LayoutNode
+	if child_class == "text" {
+		child = NewLayoutNode(NewTextLayout(word, previous_word), node, line)
+	} else if child_class == "input" {
+		child = NewLayoutNode(NewInputLayout(previous_word), node, line)
+	} else if child_class == "image" {
+		child = NewLayoutNode(NewImageLayout(previous_word), node, line)
+	} else {
+		panic("not implemented")
 	}
-	fSize, err := strconv.ParseFloat(strings.TrimSuffix(node.Style["font-size"], "px"), 32)
-	if err != nil {
-		fSize = 16 // Default font size if parsing fails
-	}
-	size := dpx(fSize*0.75, l.wrap.Zoom)
-	font := fnt.GetFont(size, weight, style)
-	l.cursor_x += w + fnt.Measure(font, " ")
+	line.Children = append(line.Children, child)
+	l.cursor_x += w + fnt.Measure(get_font(node.Style, l.wrap.Zoom), " ")
 }
 
 func (l *BlockLayout) new_line() {
@@ -303,35 +297,25 @@ func (l *LineLayout) Layout() {
 
 	var maxAscent float64
 	for _, item := range l.wrap.Children {
-		switch l := item.Layout.(type) {
-		case *TextLayout:
-			maxAscent = max(maxAscent, fnt.Ascent(l.font))
-		case *InputLayout:
-			maxAscent = max(maxAscent, fnt.Ascent(l.font))
-		}
+		maxAscent = max(maxAscent, item.Ascent)
 	}
 
-	baseline := l.wrap.Y + 1.25*maxAscent
+	baseline := l.wrap.Y + maxAscent
 	for _, item := range l.wrap.Children {
-		switch l := item.Layout.(type) {
+		switch item.Layout.(type) {
 		case *TextLayout:
-			item.Y = baseline - fnt.Ascent(l.font)
-		case *InputLayout:
-			item.Y = baseline - fnt.Ascent(l.font)
+			item.Y = baseline - item.Ascent/1.25
+		default:
+			item.Y = baseline - item.Ascent
 		}
 	}
 
 	var maxDescent float64
 	for _, item := range l.wrap.Children {
-		switch l := item.Layout.(type) {
-		case *TextLayout:
-			maxDescent = max(maxDescent, fnt.Descent(l.font))
-		case *InputLayout:
-			maxDescent = max(maxDescent, fnt.Descent(l.font))
-		}
+		maxDescent = max(maxDescent, item.Descent)
 	}
 
-	l.wrap.Height = 1.25 * (maxAscent + maxDescent)
+	l.wrap.Height = maxAscent + maxDescent
 }
 
 func (l *LineLayout) String() string {
@@ -371,7 +355,6 @@ type TextLayout struct {
 	word     string
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     font.Face
 }
 
 func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
@@ -383,33 +366,20 @@ func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
 
 func (l *TextLayout) Layout() {
 	l.wrap.Zoom = l.wrap.Parent.Zoom
-	weight := l.wrap.Node.Style["font-weight"]
-	style := l.wrap.Node.Style["font-style"]
-	if style == "normal" {
-		style = "roman"
-	}
-	fSize, err := strconv.ParseFloat(strings.TrimSuffix(l.wrap.Node.Style["font-size"], "px"), 32)
-	if err != nil {
-		fSize = 16 // Default font size if parsing fails
-	}
-	size := dpx(fSize*0.75, l.wrap.Zoom)
-	l.font = fnt.GetFont(size, weight, style)
+	l.wrap.Font = get_font(l.wrap.Node.Style, l.wrap.Zoom)
 
-	l.wrap.Width = fnt.Measure(l.font, l.word)
+	l.wrap.Width = fnt.Measure(l.wrap.Font, l.word)
 
 	if l.previous != nil {
-		switch t := l.previous.Layout.(type) {
-		case *TextLayout:
-			space := fnt.Measure(t.font, " ")
-			l.wrap.X = l.previous.X + space + l.previous.Width
-		default:
-			l.wrap.X = l.wrap.Parent.X
-		}
+		space := fnt.Measure(l.previous.Font, " ")
+		l.wrap.X = l.previous.X + space + l.previous.Width
 	} else {
 		l.wrap.X = l.wrap.Parent.X
 	}
 
-	l.wrap.Height = fnt.Linespace(l.font)
+	l.wrap.Height = fnt.Linespace(l.wrap.Font)
+	l.wrap.Ascent = fnt.Ascent(l.wrap.Font) * 1.25
+	l.wrap.Descent = fnt.Descent(l.wrap.Font) * 1.25
 }
 
 func (l *TextLayout) String() string {
@@ -418,7 +388,7 @@ func (l *TextLayout) String() string {
 
 func (l *TextLayout) Paint() []html.Command {
 	color := l.wrap.Node.Style["color"]
-	return []html.Command{html.NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.font, color)}
+	return []html.Command{html.NewDrawText(l.wrap.X, l.wrap.Y, l.word, l.wrap.Font, color)}
 }
 
 func (d *TextLayout) PaintEffects(cmds []html.Command) []html.Command {
@@ -433,50 +403,45 @@ func (d *TextLayout) Wrap(wrap *LayoutNode) {
 	d.wrap = wrap
 }
 
-type InputLayout struct {
+type EmbedLayout struct {
 	wrap     *LayoutNode
 	previous *LayoutNode
-	font     font.Face
 }
 
-func NewInputLayout(previous *LayoutNode) *InputLayout {
-	return &InputLayout{
+func NewEmbedLayout(previous *LayoutNode) *EmbedLayout {
+	return &EmbedLayout{
 		previous: previous,
 	}
 }
 
-func (l *InputLayout) Layout() {
+func (l *EmbedLayout) Layout() {
 	l.wrap.Zoom = l.wrap.Parent.Zoom
-	weight := l.wrap.Node.Style["font-weight"]
-	style := l.wrap.Node.Style["font-style"]
-	if style == "normal" {
-		style = "roman"
-	}
-	fSize, err := strconv.ParseFloat(strings.TrimSuffix(l.wrap.Node.Style["font-size"], "px"), 32)
-	if err != nil {
-		fSize = 16 // Default font size if parsing fails
-	}
-	size := dpx(fSize*0.75, l.wrap.Zoom)
-	l.font = fnt.GetFont(size, weight, style)
-
-	l.wrap.Width = INPUT_WIDTH_PX
+	l.wrap.Font = get_font(l.wrap.Node.Style, l.wrap.Zoom)
 
 	if l.previous != nil {
-		switch t := l.previous.Layout.(type) {
-		case *TextLayout:
-			space := fnt.Measure(t.font, " ")
-			l.wrap.X = l.previous.X + space + l.previous.Width
-		case *InputLayout:
-			space := fnt.Measure(t.font, " ")
-			l.wrap.X = l.previous.X + space + l.previous.Width
-		default:
-			l.wrap.X = l.wrap.Parent.X
-		}
+		space := fnt.Measure(l.previous.Font, " ")
+		l.wrap.X = l.previous.X + space + l.previous.Width
 	} else {
 		l.wrap.X = l.wrap.Parent.X
 	}
+}
 
-	l.wrap.Height = fnt.Linespace(l.font)
+type InputLayout struct {
+	EmbedLayout
+}
+
+func NewInputLayout(previous *LayoutNode) *InputLayout {
+	return &InputLayout{
+		EmbedLayout: *NewEmbedLayout(previous),
+	}
+}
+
+func (l *InputLayout) Layout() {
+	l.EmbedLayout.Layout()
+	l.wrap.Width = dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
+	l.wrap.Height = fnt.Linespace(l.wrap.Font)
+	l.wrap.Ascent = l.wrap.Height
+	l.wrap.Descent = 0
 }
 
 func (l *InputLayout) String() string {
@@ -518,10 +483,10 @@ func (l *InputLayout) Paint() []html.Command {
 	}
 
 	color := l.wrap.Node.Style["color"]
-	cmds = append(cmds, html.NewDrawText(l.wrap.X, l.wrap.Y, text, l.font, color))
+	cmds = append(cmds, html.NewDrawText(l.wrap.X, l.wrap.Y, text, l.wrap.Font, color))
 
 	if l.wrap.Node.Token.(html.ElementToken).IsFocused && l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
-		cx := l.wrap.X + fnt.Measure(l.font, text)
+		cx := l.wrap.X + fnt.Measure(l.wrap.Font, text)
 		cmds = append(cmds, html.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
 	}
 
@@ -544,6 +509,88 @@ func (d *InputLayout) Wrap(wrap *LayoutNode) {
 
 func (l *InputLayout) self_rect() *rect.Rect {
 	return rect.NewRect(l.wrap.X, l.wrap.Y, l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+}
+
+type ImageLayout struct {
+	EmbedLayout
+	img_height float64
+}
+
+func NewImageLayout(previous *LayoutNode) *ImageLayout {
+	return &ImageLayout{
+		EmbedLayout: *NewEmbedLayout(previous),
+	}
+}
+
+func (l *ImageLayout) Layout() {
+	l.EmbedLayout.Layout()
+
+	width_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["width"]
+	height_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["height"]
+	image_width := l.wrap.Node.Image.Bounds().Dx()
+	image_height := l.wrap.Node.Image.Bounds().Dy()
+	aspect_ratio := float64(image_width) / float64(image_height)
+
+	if width_attr != "" && height_attr != "" {
+		fValW, err := strconv.ParseFloat(width_attr, 64)
+		if err != nil {
+			fValW = float64(image_width)
+		}
+		fValH, err := strconv.ParseFloat(height_attr, 64)
+		if err != nil {
+			fValH = float64(image_height)
+		}
+		l.wrap.Width = dpx(fValW, l.wrap.Zoom)
+		l.img_height = dpx(fValH, l.wrap.Zoom)
+	} else if width_attr != "" {
+		fValW, err := strconv.ParseFloat(width_attr, 64)
+		if err != nil {
+			fValW = float64(image_width)
+		}
+		l.wrap.Width = dpx(fValW, l.wrap.Zoom)
+		l.img_height = l.wrap.Width / aspect_ratio
+	} else if height_attr != "" {
+		fValH, err := strconv.ParseFloat(height_attr, 64)
+		if err != nil {
+			fValH = float64(image_height)
+		}
+		l.img_height = dpx(fValH, l.wrap.Zoom)
+		l.wrap.Width = l.img_height * aspect_ratio
+	} else {
+		l.wrap.Width = dpx(float64(image_width), l.wrap.Zoom)
+		l.img_height = dpx(float64(image_height), l.wrap.Zoom)
+	}
+	l.wrap.Height = max(l.img_height, fnt.Linespace(l.wrap.Font))
+	l.wrap.Ascent = l.wrap.Height
+	l.wrap.Descent = 0
+}
+
+func (l *ImageLayout) String() string {
+	return fmt.Sprintf("ImageLayout(x=%f, y=%f, width=%f, height=%f, img_height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.img_height, l.wrap.Node.Style)
+}
+
+func (l *ImageLayout) Paint() []html.Command {
+	cmds := []html.Command{}
+	rect := rect.NewRect(l.wrap.X, l.wrap.Y+l.wrap.Height-l.img_height,
+		l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+	quality := l.wrap.Node.Style["image-rendering"]
+	if quality == "" {
+		quality = "auto"
+	}
+	cmds = append(cmds, html.NewDrawImage(l.wrap.Node.Image, rect, quality))
+	return cmds
+}
+
+func (l *ImageLayout) Wrap(wrap *LayoutNode) {
+	l.wrap = wrap
+}
+
+func (l *ImageLayout) ShouldPaint() bool {
+	return true
+}
+
+func (l *ImageLayout) PaintEffects(cmds []html.Command) []html.Command {
+	return cmds
 }
 
 func PaintTree(l *LayoutNode, displayList *[]html.Command) {
@@ -629,4 +676,15 @@ func paint_outline(node *html.HtmlNode, cmds *[]html.Command, rct *rect.Rect, zo
 		return
 	}
 	*cmds = append(*cmds, html.NewDrawOutline(rct, color, dpx(float64(thickness), zoom)))
+}
+
+func get_font(style map[string]string, zoom float64) font.Face {
+	weight := style["font-weight"]
+	variant := style["font-style"]
+	fSize, err := strconv.ParseFloat(strings.TrimSuffix(style["font-size"], "px"), 64)
+	if err != nil {
+		fSize = 16 // Default font size if parsing fails
+	}
+	font_size := dpx(fSize*0.75, zoom)
+	return fnt.GetFont(font_size, weight, variant)
 }

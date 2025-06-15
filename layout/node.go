@@ -4,6 +4,8 @@ import (
 	"gowser/css"
 	"gowser/html"
 	"gowser/rect"
+
+	"golang.org/x/image/font"
 )
 
 type LayoutNode struct {
@@ -13,6 +15,9 @@ type LayoutNode struct {
 	Children            []*LayoutNode
 	X, Y, Width, Height float64
 	Zoom                float64
+	Font                font.Face
+	Ascent              float64
+	Descent             float64
 }
 
 func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode) *LayoutNode {

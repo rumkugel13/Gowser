@@ -182,8 +182,12 @@ func NewDrawImage(image image.Image, rect *rect.Rect, quality string) *DrawImage
 }
 
 func (d *DrawImage) Execute(canvas *gg.Context) {
+	canvas.Push()
+	canvas.Translate(d.rect.Left, d.rect.Top)
+	canvas.Scale(d.rect.Width()/float64(d.image.Bounds().Dx()), d.rect.Height()/float64(d.image.Bounds().Dy()))
 	// note: filterquality not applicable in gg
-	canvas.DrawImage(d.image, int(d.rect.Left), int(d.rect.Top))
+	canvas.DrawImage(d.image, 0, 0)
+	canvas.Pop()
 }
 
 func (d *DrawImage) String() string {
