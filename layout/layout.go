@@ -330,7 +330,10 @@ func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 	outline_rect := rect.NewRectEmpty()
 	var outline_node *html.HtmlNode
 	for _, child := range d.wrap.Children {
-		outline_str := child.Node.Parent.Style["outline"]
+		var outline_str string
+		if child.Node.Parent != nil {
+			outline_str = child.Node.Parent.Style["outline"]
+		}
 		thickness, color := css.ParseOutline(outline_str)
 		if thickness != 0 && color != "" {
 			outline_rect = outline_rect.Union(child.self_rect())
