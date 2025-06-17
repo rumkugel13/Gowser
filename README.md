@@ -232,4 +232,33 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] The zoom CSS property
 
 15. Supporting Embedded Content
+    - [x] Embedding images
+    - [ ] Embedding iframes
+      - [ ] Render iframes
+      - [ ] Input events on iframes
+      - [ ] Scripts in iframes
+      - [ ] Communicating between iframes
+    - [ ] Exercises (optional)
+      - [ ] Canvas element
+      - [ ] Background images
+      - [ ] object-fit
+      - [ ] Lazy loading
+      - [ ] Iframe aspect ratio
+      - [ ] Image placeholders
+      - [ ] Media queries
+      - [ ] Target origin for postMessage
+      - [ ] Multi-frame focus
+      - [ ] Iframe history
+      - [ ] Iframes added or removed by script
+      - [ ] X-Frame-Options
+
 16. Reusing Previous Computation
+
+## Resources
+
+- [github.com/veandco/go-sdl2](github.com/veandco/go-sdl2) (Window)
+- [github.com/fogleman/gg](github.com/fogleman/gg) (Graphics)
+- [github.com/adrg/sysfont](github.com/adrg/sysfont) (Font finding)
+- [github.com/mazznoer/csscolorparser](github.com/mazznoer/csscolorparser) (CSS color parsing)
+- [gopkg.in/olebedev/go-duktape.v3](gopkg.in/olebedev/go-duktape.v3) (Javascript)
+- [github.com/anthonynsimon/bild](github.com/anthonynsimon/bild) (Blending)
