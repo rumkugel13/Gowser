@@ -10,7 +10,6 @@ import (
 	"gowser/layout"
 	"gowser/rect"
 	"gowser/task"
-	"gowser/try"
 	u "gowser/url"
 	"image"
 	"math"
@@ -94,7 +93,10 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.TaskRunner.ClearPendingTasks()
 	fmt.Println("Requesting URL:", url)
 	start := time.Now()
-	headers, body := url.Request(t.url, payload)
+	headers, body, err := url.Request(t.url, payload)
+	if err != nil {
+		panic("Request failed: " + err.Error())
+	}
 	fmt.Println("Request took:", time.Since(start))
 	t.history = append(t.history, url)
 	t.url = url
@@ -105,7 +107,12 @@ func (t *Tab) Load(url *u.URL, payload string) {
 		if len(csp) > 0 && csp[0] == "default-src" {
 			t.allowed_origins = make([]string, 0)
 			for _, origin := range csp[1:] {
-				t.allowed_origins = append(t.allowed_origins, u.NewURL(origin).Origin())
+				new_url, err := u.NewURL(origin)
+				if err != nil {
+					fmt.Println("Invalid URL: " + err.Error())
+					continue
+				}
+				t.allowed_origins = append(t.allowed_origins, new_url.Origin())
 			}
 		}
 	}
@@ -124,16 +131,17 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.js = NewJSContext(t)
 	scripts := t.scripts(t.Nodes)
 	for _, script := range scripts {
-		script_url := url.Resolve(script)
+		script_url, err := url.Resolve(script)
+		if err != nil {
+			fmt.Println("Resolving URL failed:", err.Error())
+			continue
+		}
 		if !t.allowed_request(script_url) {
 			fmt.Println("Blocked script", script_url, "due to CSP")
 			continue
 		}
 		fmt.Println("Loading script:", script_url)
-		var code []byte
-		err := try.Try(func() {
-			_, code = script_url.Request(url, "")
-		})
+		_, code, err := script_url.Request(url, "")
 		if err != nil {
 			fmt.Println("Error loading script:", err)
 		} else {
@@ -153,16 +161,17 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	t.rules = slices.Clone(DEFAULT_STYLE_SHEET)
 	links := t.links(t.Nodes)
 	for _, link := range links {
-		style_url := url.Resolve(link)
+		style_url, err := url.Resolve(link)
+		if err != nil {
+			fmt.Println("Resolving URL failed:", err.Error())
+			continue
+		}
 		if !t.allowed_request(style_url) {
 			fmt.Println("Blocked stylesheet", style_url, "due to CSP")
 			continue
 		}
 		fmt.Println("Loading stylesheet:", style_url)
-		var style_body []byte
-		err := try.Try(func() {
-			_, style_body = style_url.Request(url, "")
-		})
+		_, style_body, err := style_url.Request(url, "")
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
 		} else {
@@ -176,16 +185,17 @@ func (t *Tab) Load(url *u.URL, payload string) {
 	for _, img := range images {
 		elt, _ := img.Token.(html.ElementToken)
 		src := elt.Attributes["src"]
-		image_url := url.Resolve(src)
+		image_url, err := url.Resolve(src)
+		if err != nil {
+			fmt.Println("Resolving URL failed:", err.Error())
+			continue
+		}
 		if !t.allowed_request(image_url) {
 			fmt.Println("Blocked image", image_url, "due to CSP")
 			continue
 		}
 		fmt.Println("Loading image:", image_url)
-		var img_body []byte
-		err := try.Try(func() {
-			_, img_body = image_url.Request(url, "")
-		})
+		_, img_body, err := image_url.Request(url, "")
 		if err != nil {
 			fmt.Println("Error loading image:", err)
 			img.Image = BROKEN_IMAGE
@@ -488,8 +498,12 @@ func (t *Tab) submit_form(elt *html.HtmlNode) {
 	}
 	body = body[1:]
 
-	url := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
-	t.Load(url, body)
+	url, err := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
+	if err != nil {
+		fmt.Println("Resolving URL failed:", err.Error())
+	} else {
+		t.Load(url, body)
+	}
 }
 
 func (t *Tab) advance_tab() {
@@ -552,8 +566,12 @@ func (t *Tab) activate_element(node *html.HtmlNode) {
 		elt.Attributes["value"] = ""
 		t.SetNeedsRender()
 	} else if elt.Tag == "a" && elt.Attributes["href"] != "" {
-		url := t.url.Resolve(elt.Attributes["href"])
-		t.Load(url, "")
+		url, err := t.url.Resolve(elt.Attributes["href"])
+		if err != nil {
+			fmt.Println("Resolving URL failed:", err.Error())
+		} else {
+			t.Load(url, "")
+		}
 	} else if elt.Tag == "button" {
 		for node != nil {
 			elt, _ := node.Token.(html.ElementToken)

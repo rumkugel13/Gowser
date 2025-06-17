@@ -234,15 +234,25 @@ func (j *JSContext) style_set(handle int, s string) {
 }
 
 func (j *JSContext) xmlHttpRequest_send(method string, url string, body string, is_async bool, handle int) string {
-	full_url := j.tab.url.Resolve(url)
+	full_url, err := j.tab.url.Resolve(url)
+	if err != nil {
+		fmt.Println("Request failed: " + err.Error())
+		return ""
+	}
 	if !j.tab.allowed_request(full_url) {
-		panic("Cross-origin XHR blocked by CSP")
+		fmt.Println("Cross-origin XHR blocked by CSP")
+		return ""
 	}
 	if full_url.Origin() != j.tab.url.Origin() {
-		panic("Cross-origin XHR request not allowed")
+		fmt.Println("Cross-origin XHR request not allowed")
+		return ""
 	}
 	run_load := func() string {
-		_, response := full_url.Request(j.tab.url, body)
+		_, response, err := full_url.Request(j.tab.url, body)
+		if err != nil {
+			fmt.Println("Request failed: " + err.Error())
+			return ""
+		}
 		task := task.NewTask(func(i ...interface{}) {
 			j.dispatch_xhr_onload(string(response), handle)
 		}, response, handle)

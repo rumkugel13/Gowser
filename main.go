@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"gowser/browser"
 	u "gowser/url"
 	"os"
@@ -14,13 +15,15 @@ func main() {
 		panic("Could not init sdl")
 	}
 
-	var url *u.URL
+	url_str := "https://browser.engineering/"
 	if len(os.Args) > 1 {
-		url = u.NewURL(os.Args[1])
-	} else {
-		url = u.NewURL("https://browser.engineering/")
+		url_str = os.Args[1]
 	}
 	browser := browser.NewBrowser()
+	url, err := u.NewURL(url_str)
+	if err != nil {
+		panic("Invalid url: " + err.Error())
+	}
 	browser.NewTab(url)
 	browser.CompositeRasterAndDraw()
 	mainloop(browser)
@@ -62,7 +65,12 @@ func mainloop(browser *browser.Browser) {
 						} else if e.Keysym.Sym == sdl.K_l {
 							browser.FocusAddressbar()
 						} else if e.Keysym.Sym == sdl.K_t {
-							browser.NewTab(u.NewURL("https://browser.engineering/"))
+							new_url, err := u.NewURL("https://browser.engineering/")
+							if err != nil {
+								fmt.Println("Invalid URL:", err.Error())
+							} else {
+								browser.NewTab(new_url)
+							}
 						} else if e.Keysym.Sym == sdl.K_TAB {
 							browser.CycleTabs()
 						} else if e.Keysym.Sym == sdl.K_q {

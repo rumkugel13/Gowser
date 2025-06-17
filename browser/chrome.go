@@ -136,7 +136,12 @@ func (c *Chrome) paint() []html.Command {
 func (c *Chrome) click(x, y float64) {
 	c.focus = ""
 	if c.newtab_rect.ContainsPoint(x, y) {
-		c.browser.new_tab_internal(url.NewURL("https://browser.engineering/"))
+		new_url, err := url.NewURL("https://browser.engineering/")
+		if err != nil {
+			fmt.Println("Creating URL failed: " + err.Error())
+			return
+		}
+		c.browser.new_tab_internal(new_url)
 	} else if c.back_rect.ContainsPoint(x, y) {
 		task := task.NewTask(func(i ...interface{}) {
 			c.browser.ActiveTab.go_back()
@@ -180,7 +185,12 @@ func (c *Chrome) backspace() bool {
 
 func (c *Chrome) enter() bool {
 	if c.focus == "address bar" {
-		c.browser.ActiveTab.browser.ScheduleLoad(url.NewURL(c.address_bar), "")
+		new_url, err := url.NewURL(c.address_bar)
+		if err != nil {
+			fmt.Println("Creating URL failed: " + err.Error())
+			return false
+		}
+		c.browser.ActiveTab.browser.ScheduleLoad(new_url, "")
 		c.focus = ""
 		return true
 	}
