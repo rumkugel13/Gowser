@@ -28,7 +28,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [x] Scrolling the content in the window
    - [ ] Exercises (Optional)
      - [ ] Line breaks
-     - [ ] Mouse wheel
+     - [x] Mouse wheel
      - [ ] Resizing
      - [ ] Scrollbar
      - [ ] Zoom
