@@ -31,7 +31,7 @@ func TestBasicLayout(t *testing.T) {
 
 	// Create document layout
 	doc := NewLayoutNode(NewDocumentLayout(), htmlNode, nil)
-	doc.Layout.Layout()
+	doc.Layout.(*DocumentLayout).LayoutWithZoom(1.0)
 
 	// Basic tests
 	if doc.Width != WIDTH-2*HSTEP {
