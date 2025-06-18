@@ -107,17 +107,49 @@ func (p *HTMLParser) finish() *HtmlNode {
 }
 
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
-	parts := strings.Fields(text)
-	tag := strings.ToLower(parts[0])
 	attributes := make(map[string]string)
-	for _, part := range parts[1:] {
-		if strings.Contains(part, "=") {
-			kv := strings.SplitN(part, "=", 2)
-			key, value := strings.ToLower(kv[0]), kv[1]
-			value = strings.Trim(value, "\"'")
-			attributes[key] = value
+
+	split := strings.SplitN(text, " ", 2)
+	tag := strings.ToLower(split[0])
+	if len(split) == 1 {
+		return tag, attributes
+	}
+
+	attr_str := split[1]
+	start := 0
+	cur := 0
+	for {
+		for start < len(attr_str) && attr_str[start] == ' ' {
+			start++
+		}
+		for cur < len(attr_str) && attr_str[cur] != '=' {
+			cur++
+		}
+		key := strings.ToLower(attr_str[start:cur])
+		cur++
+		start = cur // skip =
+		if cur < len(attr_str) && (attr_str[cur] == '\'' || attr_str[cur] == '"') {
+			quot := attr_str[cur]
+			cur++ // skip quot
+			for cur < len(attr_str) && attr_str[cur] != quot {
+				cur++
+			}
+			val := attr_str[start+1 : cur]
+			attributes[key] = val
+			cur++ // skip quot
+			start = cur
+		} else if cur < len(attr_str) && !(attr_str[cur] == ' ') {
+			for cur < len(attr_str) && attr_str[cur] != ' ' {
+				cur++
+			}
+			val := attr_str[start:cur]
+			attributes[key] = val
+			start = cur
 		} else {
-			attributes[strings.ToLower(part)] = ""
+			if key != "" && key != "/" {
+				attributes[key] = ""
+			}
+			break
 		}
 	}
 	return tag, attributes

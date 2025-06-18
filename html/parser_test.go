@@ -34,3 +34,55 @@ func TestParentChildRelationships(t *testing.T) {
 			strings.Join(issues, "\n"))
 	}
 }
+
+func TestGetAttributes(t *testing.T) {
+	parser := NewHTMLParser("")
+	testCases := []struct {
+		input    string
+		wantTag  string
+		wantAttr map[string]string
+	}{
+		{
+			"div",
+			"div",
+			map[string]string{},
+		},
+		{
+			"div class=\"main\"",
+			"div",
+			map[string]string{"class": "main"},
+		},
+		{
+			"IMG SRC='test.jpg' ALT=\"Test Image\" data-test",
+			"img",
+			map[string]string{
+				"src": "test.jpg",
+				"alt": "Test Image",
+				"data-test": "",
+			},
+		},
+		{
+			"input type=text required",
+			"input",
+			map[string]string{
+				"type": "text",
+				"required": "",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		gotTag, gotAttr := parser.get_attributes(tc.input)
+		if gotTag != tc.wantTag {
+			t.Errorf("get_attributes(%q) tag = %q, want %q", tc.input, gotTag, tc.wantTag)
+		}
+		if len(gotAttr) != len(tc.wantAttr) {
+			t.Errorf("get_attributes(%q) attr count = %d, want %d", tc.input, len(gotAttr), len(tc.wantAttr))
+		}
+		for k, v := range tc.wantAttr {
+			if gotAttr[k] != v {
+				t.Errorf("get_attributes(%q) attr[%q] = %q, want %q", tc.input, k, gotAttr[k], v)
+			}
+		}
+	}
+}
