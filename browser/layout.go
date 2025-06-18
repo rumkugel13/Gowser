@@ -1,4 +1,4 @@
-package layout
+package browser
 
 import (
 	"fmt"
@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	HSTEP          = 13.
-	VSTEP          = 18.
-	WIDTH          = 800.
-	INPUT_WIDTH_PX = 200.
+	HSTEP            = 13.
+	VSTEP            = 18.
+	INPUT_WIDTH_PX   = 200.
+	IFRAME_WIDTH_PX  = 300.
+	IFRAME_HEIGHT_PX = 150.
 )
 
 var BLOCK_ELEMENTS = []string{
@@ -48,7 +49,7 @@ func NewDocumentLayout() *DocumentLayout {
 
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
 	d.Wrapper.Zoom = zoom
-	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper)
+	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper, d.Wrapper.Frame)
 	d.Wrapper.Children = append(d.Wrapper.Children, child)
 
 	d.Wrapper.Width = WIDTH - 2*dpx(HSTEP, d.Wrapper.Zoom)
@@ -111,7 +112,7 @@ func (l *BlockLayout) Layout() {
 	if mode == "block" {
 		var previous *LayoutNode
 		for _, child := range l.wrap.Node.Children {
-			next := NewLayoutNode(NewBlockLayout(previous), child, l.wrap)
+			next := NewLayoutNode(NewBlockLayout(previous), child, l.wrap, l.wrap.Frame)
 			l.wrap.Children = append(l.wrap.Children, next)
 			previous = next
 		}
@@ -164,7 +165,7 @@ func (d *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
 }
 
 func (d *BlockLayout) ShouldPaint() bool {
-	if _, ok := d.wrap.Node.Token.(html.TextToken); ok || !slices.Contains([]string{"input", "button", "img"}, d.wrap.Node.Token.(html.ElementToken).Tag) {
+	if _, ok := d.wrap.Node.Token.(html.TextToken); ok || !slices.Contains([]string{"input", "button", "img", "iframe"}, d.wrap.Node.Token.(html.ElementToken).Tag) {
 		return true
 	}
 	return false
@@ -183,7 +184,7 @@ func (l *BlockLayout) layout_mode() string {
 				return "block"
 			}
 		}
-		if len(l.wrap.Node.Children) > 0 || slices.Contains([]string{"input", "img"}, l.wrap.Node.Token.(html.ElementToken).Tag) {
+		if len(l.wrap.Node.Children) > 0 || slices.Contains([]string{"input", "img", "iframe"}, l.wrap.Node.Token.(html.ElementToken).Tag) {
 			return "inline"
 		} else {
 			return "block"
@@ -205,6 +206,8 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 			l.input(node)
 		} else if element.Tag == "img" {
 			l.image(node)
+		} else if element.Tag == "iframe" && element.Attributes["src"] != "" {
+			l.iframe(node)
 		} else {
 			for _, child := range node.Children {
 				l.recurse(child)
@@ -216,12 +219,12 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 func (l *BlockLayout) word(node *html.HtmlNode, word string) {
 	node_font := get_font(node.Style, l.wrap.Zoom)
 	w := fnt.Measure(node_font, word)
-	l.add_inline_child(node, w, "text", word)
+	l.add_inline_child(node, w, "text", word, l.wrap.Frame)
 }
 
 func (l *BlockLayout) input(node *html.HtmlNode) {
 	w := dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
-	l.add_inline_child(node, w, "input", "")
+	l.add_inline_child(node, w, "input", "", l.wrap.Frame)
 }
 
 func (l *BlockLayout) image(node *html.HtmlNode) {
@@ -233,10 +236,22 @@ func (l *BlockLayout) image(node *html.HtmlNode) {
 		}
 		w = dpx(fVal, l.wrap.Zoom)
 	}
-	l.add_inline_child(node, w, "image", "")
+	l.add_inline_child(node, w, "image", "", l.wrap.Frame)
 }
 
-func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_class, word string) {
+func (l *BlockLayout) iframe(node *html.HtmlNode) {
+	w := IFRAME_WIDTH_PX + dpx(2, l.wrap.Zoom)
+	if val, ok := node.Token.(html.ElementToken).Attributes["width"]; ok {
+		fVal, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			fVal = float64(IFRAME_WIDTH_PX + 2)
+		}
+		w = dpx(fVal, l.wrap.Zoom)
+	}
+	l.add_inline_child(node, w, "iframe", "", l.wrap.Frame)
+}
+
+func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_class, word string, frame *Frame) {
 	if l.cursor_x+w > l.wrap.X+l.wrap.Width {
 		l.new_line()
 	}
@@ -247,11 +262,13 @@ func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_cla
 	}
 	var child *LayoutNode
 	if child_class == "text" {
-		child = NewLayoutNode(NewTextLayout(word, previous_word), node, line)
+		child = NewLayoutNode(NewTextLayout(word, previous_word), node, line, frame)
 	} else if child_class == "input" {
-		child = NewLayoutNode(NewInputLayout(previous_word), node, line)
+		child = NewLayoutNode(NewInputLayout(previous_word), node, line, frame)
 	} else if child_class == "image" {
-		child = NewLayoutNode(NewImageLayout(previous_word), node, line)
+		child = NewLayoutNode(NewImageLayout(previous_word), node, line, frame)
+	} else if child_class == "iframe" {
+		child = NewLayoutNode(NewIframeLayout(previous_word), node, line, frame)
 	} else {
 		panic("not implemented")
 	}
@@ -265,7 +282,7 @@ func (l *BlockLayout) new_line() {
 	if len(l.wrap.Children) > 0 {
 		last_line = l.wrap.Children[len(l.wrap.Children)-1]
 	}
-	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap)
+	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap, l.wrap.Frame)
 	l.wrap.Children = append(l.wrap.Children, new_line)
 }
 
@@ -427,6 +444,10 @@ func (l *EmbedLayout) Layout() {
 	} else {
 		l.wrap.X = l.wrap.Parent.X
 	}
+}
+
+func (l EmbedLayout) ShouldPaint() bool {
+	return true
 }
 
 type InputLayout struct {
@@ -596,13 +617,120 @@ func (l *ImageLayout) PaintEffects(cmds []html.Command) []html.Command {
 	return cmds
 }
 
+type IframeLayout struct {
+	EmbedLayout
+	parent_frame *html.HtmlNode
+}
+
+func NewIframeLayout(previous *LayoutNode) *IframeLayout {
+	return &IframeLayout{
+		EmbedLayout: *NewEmbedLayout(previous),
+	}
+}
+
+func (l *IframeLayout) Layout() {
+	l.EmbedLayout.Layout()
+
+	width_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["width"]
+	height_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["height"]
+
+	if width_attr != "" {
+		fValW, err := strconv.ParseFloat(width_attr, 64)
+		if err != nil {
+			fValW = float64(IFRAME_WIDTH_PX)
+		}
+		l.wrap.Width = dpx(fValW+2, l.wrap.Zoom)
+	} else {
+		l.wrap.Width = dpx(IFRAME_WIDTH_PX+2, l.wrap.Zoom)
+	}
+
+	if height_attr != "" {
+		fValH, err := strconv.ParseFloat(height_attr, 64)
+		if err != nil {
+			fValH = float64(IFRAME_HEIGHT_PX)
+		}
+		l.wrap.Height = dpx(fValH+2, l.wrap.Zoom)
+	} else {
+		l.wrap.Height = dpx(IFRAME_HEIGHT_PX+2, l.wrap.Zoom)
+	}
+
+	l.wrap.Ascent = l.wrap.Height
+	l.wrap.Descent = 0
+
+	if l.wrap.Node.Frame != nil && l.wrap.Node.Frame.(*Frame).Loaded {
+		l.wrap.Node.Frame.(*Frame).frame_height = l.wrap.Height - dpx(2, l.wrap.Zoom)
+		l.wrap.Node.Frame.(*Frame).frame_width = l.wrap.Width - dpx(2, l.wrap.Zoom)
+	}
+}
+
+func (l *IframeLayout) String() string {
+	return fmt.Sprintf("IframeLayout(x=%f, y=%f, width=%f, height=%f, style=%v)", l.wrap.X, l.wrap.Y, l.wrap.Width, l.wrap.Height, l.wrap.Node.Style)
+}
+
+func (l *IframeLayout) Paint() []html.Command {
+	cmds := []html.Command{}
+	rect := rect.NewRect(l.wrap.X, l.wrap.Y+l.wrap.Height,
+		l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+
+	bgcolor, ok := l.wrap.Node.Style["background-color"]
+	if !ok {
+		bgcolor = "transparent"
+	}
+	if bgcolor != "transparent" {
+		radius, ok := l.wrap.Node.Style["border-radius"]
+		if !ok {
+			radius = "0px"
+		}
+		actualRadius, err := strconv.ParseFloat(strings.TrimSuffix(radius, "px"), 32)
+		if err != nil {
+			actualRadius = 0 // Default radius size if parsing fails
+		}
+		rect := html.NewDrawRRect(rect, actualRadius, bgcolor)
+		cmds = append(cmds, rect)
+	}
+
+	return cmds
+}
+
+func (l *IframeLayout) Wrap(wrap *LayoutNode) {
+	l.wrap = wrap
+}
+
+func (l *IframeLayout) ShouldPaint() bool {
+	return true
+}
+
+func (l *IframeLayout) PaintEffects(cmds []html.Command) []html.Command {
+	rct := rect.NewRect(l.wrap.X, l.wrap.Y+l.wrap.Height,
+		l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
+
+	diff := dpx(1, l.wrap.Zoom)
+	offsetX, offsetY := l.wrap.X+diff, l.wrap.Y+diff
+	cmds = []html.Command{html.NewTransform(offsetX, offsetY, rct, l.wrap.Node, cmds)}
+	inner_rect := rect.NewRect(
+		l.wrap.X+diff, l.wrap.Y+diff,
+		l.wrap.X+l.wrap.Width-diff, l.wrap.Y+l.wrap.Height-diff,
+	)
+	internal_cmds := cmds
+	internal_cmds = append(internal_cmds, html.NewDrawBlend(1.0, "destination-in", nil, []html.Command{html.NewDrawRRect(inner_rect, 0, "white")}))
+	cmds = []html.Command{html.NewDrawBlend(1.0, "source-over", l.wrap.Node, internal_cmds)}
+	paint_outline(l.wrap.Node, &cmds, rct, l.wrap.Zoom)
+	cmds = paint_visual_effects(l.wrap.Node, cmds, rct)
+	return cmds
+}
+
 func PaintTree(l *LayoutNode, displayList *[]html.Command) {
 	var cmds []html.Command
 	if l.Layout.ShouldPaint() {
 		cmds = l.Layout.Paint()
 	}
-	for _, child := range l.Children {
-		PaintTree(child, &cmds)
+
+	if iframe, ok := l.Layout.(*IframeLayout); ok && iframe.wrap.Node.Frame != nil && iframe.wrap.Node.Frame.(*Frame).Loaded {
+		PaintTree(iframe.wrap.Node.Frame.(*Frame).Document, &cmds)
+	} else {
+		for _, child := range l.Children {
+			PaintTree(child, &cmds)
+		}
 	}
 
 	if l.Layout.ShouldPaint() {
@@ -618,10 +746,10 @@ func PrintTree(l *LayoutNode, indent int) {
 	}
 }
 
-func TreeToList(tree *LayoutNode) []*LayoutNode {
+func LayoutTreeToList(tree *LayoutNode) []*LayoutNode {
 	list := []*LayoutNode{tree}
 	for _, child := range tree.Children {
-		list = append(list, TreeToList(child)...)
+		list = append(list, LayoutTreeToList(child)...)
 	}
 	return list
 }

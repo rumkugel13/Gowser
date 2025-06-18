@@ -156,7 +156,7 @@ func (c *Chrome) click(x, y float64) {
 				c.browser.set_active_tab(tab)
 				active_tab := c.browser.ActiveTab
 				task := task.NewTask(func(i ...interface{}) {
-					active_tab.SetNeedsRender()
+					active_tab.SetNeedsRenderAllFrames()
 				})
 				active_tab.TaskRunner.ScheduleTask(task)
 				break

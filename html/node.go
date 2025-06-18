@@ -18,6 +18,7 @@ type HtmlNode struct {
 	BlendOp      VisualEffectCommand
 	LayoutObject any // layout.LayoutNode
 	Image        image.Image
+	Frame        any // browser.Frame
 }
 
 func NewNode(token Token, parent *HtmlNode) *HtmlNode {

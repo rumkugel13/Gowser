@@ -1,4 +1,4 @@
-package layout
+package browser
 
 import (
 	"gowser/css"
@@ -18,14 +18,16 @@ type LayoutNode struct {
 	Font                font.Face
 	Ascent              float64
 	Descent             float64
+	Frame               *Frame
 }
 
-func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode) *LayoutNode {
+func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode, frame *Frame) *LayoutNode {
 	node := &LayoutNode{
 		Node:     htmlNode,
 		Layout:   layout,
 		Parent:   parent,
 		Children: make([]*LayoutNode, 0),
+		Frame:    frame,
 	}
 	layout.Wrap(node)
 	htmlNode.LayoutObject = node

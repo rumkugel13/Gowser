@@ -75,7 +75,7 @@ func Style(node *html.HtmlNode, rules []css.Rule, tab *Tab) {
 		transitions := diff_styles(old_style, node.Style)
 		for property, transition := range transitions {
 			if property == "opacity" {
-				tab.SetNeedsRender()
+				tab.SetNeedsRenderAllFrames()
 				oldfVal, _ := strconv.ParseFloat(transition.old_value, 32)
 				newfVal, _ := strconv.ParseFloat(transition.new_value, 32)
 

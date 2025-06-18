@@ -233,11 +233,11 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
 
 15. Supporting Embedded Content
     - [x] Embedding images
-    - [ ] Embedding iframes
-      - [ ] Render iframes
-      - [ ] Input events on iframes
-      - [ ] Scripts in iframes
-      - [ ] Communicating between iframes
+    - [x] Embedding iframes
+      - [x] Render iframes
+      - [x] Input events on iframes
+      - [x] Scripts in iframes
+      - [x] Communicating between iframes
     - [ ] Exercises (optional)
       - [ ] Canvas element
       - [ ] Background images

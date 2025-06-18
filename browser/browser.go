@@ -69,18 +69,19 @@ type Browser struct {
 	needs_draw               bool
 	composited_updates       map[*html.HtmlNode]html.VisualEffectCommand
 	dark_mode                bool
-	accessibility_tree       *accessibility.AccessibilityNode
+	accessibility_tree       A11yNode
 	needs_accessibility      bool
 	accessibility_is_on      bool
 	has_spoken_document      bool
 	tab_focus                *html.HtmlNode
 	last_tab_focus           *html.HtmlNode
-	focus_a11y_node          *accessibility.AccessibilityNode
-	active_alerts            []*accessibility.AccessibilityNode
-	spoken_alerts            []*accessibility.AccessibilityNode
+	focus_a11y_node          A11yNode
+	active_alerts            []A11yNode
+	spoken_alerts            []A11yNode
 	pending_hover            *gg.Point
-	hovered_a11y_node        *accessibility.AccessibilityNode
+	hovered_a11y_node        A11yNode
 	needs_speak_hovered_node bool
+	root_frame_focused       bool
 }
 
 func NewBrowser() *Browser {
@@ -223,24 +224,42 @@ func (b *Browser) HandleQuit() {
 
 func (b *Browser) HandleUp() {
 	b.lock.Lock()
-	if b.active_tab_height == 0 {
+	if b.root_frame_focused {
+		if b.active_tab_height == 0 {
+			b.lock.Unlock()
+			return
+		}
+		b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll - SCROLL_STEP)
+		b.SetNeedsDraw()
+		b.needs_animation_frame = true
 		b.lock.Unlock()
 		return
 	}
-	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll - SCROLL_STEP)
-	b.SetNeedsDraw()
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.ScrollUp()
+	})
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
 	b.needs_animation_frame = true
 	b.lock.Unlock()
 }
 
 func (b *Browser) HandleDown() {
 	b.lock.Lock()
-	if b.active_tab_height == 0 {
+	if b.root_frame_focused {
+		if b.active_tab_height == 0 {
+			b.lock.Unlock()
+			return
+		}
+		b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll + SCROLL_STEP)
+		b.SetNeedsDraw()
+		b.needs_animation_frame = true
 		b.lock.Unlock()
 		return
 	}
-	b.active_tab_scroll = b.clamp_scroll(b.active_tab_scroll + SCROLL_STEP)
-	b.SetNeedsDraw()
+	task := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.ScrollDown()
+	})
+	b.ActiveTab.TaskRunner.ScheduleTask(task)
 	b.needs_animation_frame = true
 	b.lock.Unlock()
 }
@@ -407,6 +426,7 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 		if data.scroll != nil {
 			b.active_tab_scroll = *data.scroll
 		}
+		b.root_frame_focused = data.root_frame_focused
 		b.active_tab_height = data.height
 		if len(data.display_list) > 0 {
 			b.active_tab_display_list = data.display_list
@@ -420,6 +440,9 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 			b.SetNeedsDraw()
 		}
 		b.accessibility_tree = data.accessibility_tree
+		if b.accessibility_tree != nil {
+			b.SetNeedsAccessibility()
+		}
 		b.tab_focus = data.focus
 	}
 	b.lock.Unlock()
@@ -516,13 +539,18 @@ func (b *Browser) ScheduleLoad(url *url.URL, body string) {
 
 func (b *Browser) set_active_tab(new_tab *Tab) {
 	b.ActiveTab = new_tab
+	task1 := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.set_dark_mode(b.dark_mode)
+	}, b.dark_mode)
+	b.ActiveTab.TaskRunner.ScheduleTask(task1)
+	task2 := task.NewTask(func(i ...interface{}) {
+		b.ActiveTab.SetNeedsRenderAllFrames()
+	}, b.dark_mode)
+	b.ActiveTab.TaskRunner.ScheduleTask(task2)
+
 	b.clear_data()
 	b.needs_animation_frame = true
 	b.animation_timer = nil
-	task := task.NewTask(func(i ...interface{}) {
-		b.ActiveTab.set_dark_mode(b.dark_mode)
-	}, b.dark_mode)
-	b.ActiveTab.TaskRunner.ScheduleTask(task)
 }
 
 func (b *Browser) clear_data() {
@@ -645,7 +673,7 @@ func (b *Browser) paint_draw_list() {
 		a11y_node := b.accessibility_tree.HitTest(x, y)
 
 		if a11y_node != nil {
-			if b.hovered_a11y_node == nil || a11y_node.Node != b.hovered_a11y_node.Node {
+			if b.hovered_a11y_node == nil || a11y_node.Node() != b.hovered_a11y_node.Node() {
 				b.needs_speak_hovered_node = true
 			}
 			b.hovered_a11y_node = a11y_node
@@ -658,7 +686,7 @@ func (b *Browser) paint_draw_list() {
 		if b.dark_mode {
 			color = "white"
 		}
-		for _, bound := range b.hovered_a11y_node.Bounds {
+		for _, bound := range b.hovered_a11y_node.Bounds() {
 			b.draw_list = append(b.draw_list, html.NewDrawOutline(bound, color, 2))
 		}
 	}
@@ -685,9 +713,9 @@ func (b *Browser) update_accessibility() {
 		b.has_spoken_document = true
 	}
 
-	b.active_alerts = make([]*accessibility.AccessibilityNode, 0)
-	for _, node := range accessibility.TreeToList(b.accessibility_tree) {
-		if node.Role == "alert" {
+	b.active_alerts = make([]A11yNode, 0)
+	for _, node := range A11yTreeToList(b.accessibility_tree) {
+		if node.Role() == "alert" {
 			b.active_alerts = append(b.active_alerts, node)
 		}
 	}
@@ -699,11 +727,11 @@ func (b *Browser) update_accessibility() {
 		}
 	}
 
-	new_spoken_alerts := make([]*accessibility.AccessibilityNode, 0)
+	new_spoken_alerts := make([]A11yNode, 0)
 	for _, old_node := range b.spoken_alerts {
-		new_nodes := make([]*accessibility.AccessibilityNode, 0)
-		for _, node := range accessibility.TreeToList(b.accessibility_tree) {
-			if node.Node == old_node.Node && node.Role == "alert" {
+		new_nodes := make([]A11yNode, 0)
+		for _, node := range A11yTreeToList(b.accessibility_tree) {
+			if node.Node() == old_node.Node() && node.Role() == "alert" {
 				new_nodes = append(new_nodes, node)
 			}
 		}
@@ -714,10 +742,10 @@ func (b *Browser) update_accessibility() {
 	b.spoken_alerts = new_spoken_alerts
 
 	if (b.tab_focus != nil) && (b.tab_focus != b.last_tab_focus) {
-		nodes := []*accessibility.AccessibilityNode{}
-		acNodes := accessibility.TreeToList(b.accessibility_tree)
+		nodes := []A11yNode{}
+		acNodes := A11yTreeToList(b.accessibility_tree)
 		for _, node := range acNodes {
-			if node.Node == b.tab_focus {
+			if node.Node() == b.tab_focus {
 				nodes = append(nodes, node)
 			}
 		}
@@ -736,9 +764,9 @@ func (b *Browser) update_accessibility() {
 
 func (b *Browser) speak_document() {
 	text := "Here are the document contents: "
-	tree_list := accessibility.TreeToList(b.accessibility_tree)
+	tree_list := A11yTreeToList(b.accessibility_tree)
 	for _, accessibility_node := range tree_list {
-		new_text := accessibility_node.Text
+		new_text := accessibility_node.Text()
 		if new_text != "" {
 			text += "\n" + new_text
 		}
@@ -746,10 +774,10 @@ func (b *Browser) speak_document() {
 	accessibility.SpeakText(text)
 }
 
-func (b *Browser) speak_node(node *accessibility.AccessibilityNode, text string) {
-	text += node.Text
-	if text != "" && len(node.Children) > 0 && node.Children[0].Role == "StaticText" {
-		text += " " + node.Children[0].Text
+func (b *Browser) speak_node(node A11yNode, text string) {
+	text += node.Text()
+	if text != "" && len(node.Children()) > 0 && node.Children()[0].Role() == "StaticText" {
+		text += " " + node.Children()[0].Text()
 	}
 	if text != "" {
 		accessibility.SpeakText(text)

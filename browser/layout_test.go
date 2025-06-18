@@ -1,4 +1,4 @@
-package layout
+package browser
 
 import (
 	"gowser/html"
@@ -30,7 +30,7 @@ func TestBasicLayout(t *testing.T) {
 	}
 
 	// Create document layout
-	doc := NewLayoutNode(NewDocumentLayout(), htmlNode, nil)
+	doc := NewLayoutNode(NewDocumentLayout(), htmlNode, nil, nil)
 	doc.Layout.(*DocumentLayout).LayoutWithZoom(1.0)
 
 	// Basic tests

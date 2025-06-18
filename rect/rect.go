@@ -57,6 +57,11 @@ func (r *Rect) Inflate(dx, dy float64) {
 	r.Bottom += dy
 }
 
+func (r *Rect) Offset(x, y float64) {
+	r.Left += x
+	r.Top += y
+}
+
 func (r *Rect) IsEmpty() bool {
 	return r.Left >= r.Right || r.Top >= r.Bottom
 }
