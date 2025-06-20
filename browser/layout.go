@@ -40,7 +40,7 @@ type Layout interface {
 }
 
 type DocumentLayout struct {
-	Wrapper *LayoutNode
+	wrap *LayoutNode
 }
 
 func NewDocumentLayout() *DocumentLayout {
@@ -48,15 +48,15 @@ func NewDocumentLayout() *DocumentLayout {
 }
 
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
-	d.Wrapper.Zoom = zoom
-	child := NewLayoutNode(NewBlockLayout(), d.Wrapper.Node, d.Wrapper, nil, d.Wrapper.Frame)
-	d.Wrapper.Children = append(d.Wrapper.Children, child)
+	d.wrap.Zoom = zoom
+	child := NewLayoutNode(NewBlockLayout(), d.wrap.Node, d.wrap, nil, d.wrap.Frame)
+	d.wrap.Children = append(d.wrap.Children, child)
 
-	d.Wrapper.Width = WIDTH - 2*dpx(HSTEP, d.Wrapper.Zoom)
-	d.Wrapper.X = dpx(HSTEP, d.Wrapper.Zoom)
-	d.Wrapper.Y = dpx(VSTEP, d.Wrapper.Zoom)
+	d.wrap.Width = WIDTH - 2*dpx(HSTEP, d.wrap.Zoom)
+	d.wrap.X = dpx(HSTEP, d.wrap.Zoom)
+	d.wrap.Y = dpx(VSTEP, d.wrap.Zoom)
 	child.Layout.Layout()
-	d.Wrapper.Height = child.Height
+	d.wrap.Height = child.Height
 }
 
 func (d *DocumentLayout) Layout() {
@@ -64,7 +64,7 @@ func (d *DocumentLayout) Layout() {
 }
 
 func (d *DocumentLayout) String() string {
-	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.Wrapper.X, d.Wrapper.Y, d.Wrapper.Width, d.Wrapper.Height)
+	return fmt.Sprintf("DocumentLayout(x=%f, y=%f, width=%f, height=%f)", d.wrap.X, d.wrap.Y, d.wrap.Width, d.wrap.Height)
 }
 
 func (d *DocumentLayout) Paint() []html.Command {
@@ -80,7 +80,7 @@ func (d *DocumentLayout) ShouldPaint() bool {
 }
 
 func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
-	d.Wrapper = wrap
+	d.wrap = wrap
 }
 
 type BlockLayout struct {
