@@ -311,7 +311,7 @@ func paint_tree(layout_object *LayoutNode, displayList *[]html.Command) {
 	if _, ok := layout_object.Layout.(*IframeLayout); ok && layout_object.Node.Frame != nil && layout_object.Node.Frame.(*Frame).Loaded {
 		paint_tree(layout_object.Node.Frame.(*Frame).Document, &cmds)
 	} else {
-		for _, child := range layout_object.Children {
+		for _, child := range layout_object.Children.Get() {
 			paint_tree(child, &cmds)
 		}
 	}

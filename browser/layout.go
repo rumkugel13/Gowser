@@ -48,19 +48,20 @@ func NewDocumentLayout() *DocumentLayout {
 }
 
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
-	d.wrap.Zoom = zoom
+	d.wrap.Zoom.Set(zoom)
 
 	var child *LayoutNode
-	if len(d.wrap.Children) == 0 {
+	if d.wrap.Children.dirty || len(d.wrap.Children.Get()) == 0 {
 		child = NewLayoutNode(NewBlockLayout(), d.wrap.Node, d.wrap, nil, d.wrap.Frame)
 	} else {
-		child = d.wrap.Children[0]
+		child = d.wrap.Children.Get()[0]
 	}
-	d.wrap.Children = []*LayoutNode{child}
+	d.wrap.Children.Set([]*LayoutNode{child})
+	child.Zoom.Mark()
 
-	d.wrap.Width = WIDTH - 2*dpx(HSTEP, d.wrap.Zoom)
-	d.wrap.X = dpx(HSTEP, d.wrap.Zoom)
-	d.wrap.Y = dpx(VSTEP, d.wrap.Zoom)
+	d.wrap.Width = WIDTH - 2*dpx(HSTEP, d.wrap.Zoom.Get())
+	d.wrap.X = dpx(HSTEP, d.wrap.Zoom.Get())
+	d.wrap.Y = dpx(VSTEP, d.wrap.Zoom.Get())
 	child.Layout.Layout()
 	d.wrap.Height = child.Height
 }
@@ -92,20 +93,19 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 type BlockLayout struct {
 	cursor_x, cursor_y float64
 	wrap               *LayoutNode
-	children_dirty     bool
+	temp_children      []*LayoutNode
 }
 
 func NewBlockLayout() *BlockLayout {
 	layout := &BlockLayout{
-		cursor_x:       HSTEP,
-		cursor_y:       VSTEP,
-		children_dirty: true,
+		cursor_x: HSTEP,
+		cursor_y: VSTEP,
 	}
 	return layout
 }
 
 func (l *BlockLayout) Layout() {
-	l.wrap.Zoom = l.wrap.Parent.Zoom
+	l.wrap.Zoom.Copy(l.wrap.Parent.Zoom)
 	if l.wrap.Previous != nil {
 		l.wrap.Y = l.wrap.Previous.Y + l.wrap.Previous.Height
 	} else {
@@ -116,37 +116,31 @@ func (l *BlockLayout) Layout() {
 
 	mode := l.layout_mode()
 	if mode == "block" {
-		if l.children_dirty {
-			l.wrap.Children = make([]*LayoutNode, 0)
+		if l.wrap.Children.dirty {
+			children := make([]*LayoutNode, 0)
 			var previous *LayoutNode
 			for _, child := range l.wrap.Node.Children {
 				next := NewLayoutNode(NewBlockLayout(), child, l.wrap, previous, l.wrap.Frame)
-				l.wrap.Children = append(l.wrap.Children, next)
+				children = append(children, next)
 				previous = next
 			}
-			l.children_dirty = false
+			l.wrap.Children.Set(children)
 		}
 	} else {
-		if l.children_dirty {
-			l.wrap.Children = make([]*LayoutNode, 0)
+		if l.wrap.Children.dirty {
+			l.temp_children = make([]*LayoutNode, 0)
 			l.new_line()
 			l.recurse(l.wrap.Node)
-			l.children_dirty = false
+			l.wrap.Children.Set(l.temp_children)
 		}
 	}
 
-	if l.children_dirty {
-		panic("children dirty")
-	}
-	for _, child := range l.wrap.Children {
+	for _, child := range l.wrap.Children.Get() {
 		child.Layout.Layout()
 	}
 
-	if l.children_dirty {
-		panic("children dirty")
-	}
 	var totalHeight float64
-	for _, child := range l.wrap.Children {
+	for _, child := range l.wrap.Children.Get() {
 		totalHeight += child.Height
 	}
 	l.wrap.Height = totalHeight
@@ -158,9 +152,6 @@ func (l *BlockLayout) String() string {
 }
 
 func (l *BlockLayout) Paint() []html.Command {
-	if l.children_dirty {
-		panic("children dirty")
-	}
 	cmds := make([]html.Command, 0)
 
 	bgcolor, ok := l.wrap.Node.Style["background-color"]
@@ -258,36 +249,40 @@ func (l *BlockLayout) recurse(node *html.HtmlNode) {
 }
 
 func (l *BlockLayout) word(node *html.HtmlNode, word string) {
-	node_font := get_font(node.Style, l.wrap.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	node_font := get_font(node.Style, zoom)
 	w := fnt.Measure(node_font, word)
 	l.add_inline_child(node, w, "text", word, l.wrap.Frame)
 }
 
 func (l *BlockLayout) input(node *html.HtmlNode) {
-	w := dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	w := dpx(INPUT_WIDTH_PX, zoom)
 	l.add_inline_child(node, w, "input", "", l.wrap.Frame)
 }
 
 func (l *BlockLayout) image(node *html.HtmlNode) {
-	w := dpx(float64(node.Image.Bounds().Dx()), l.wrap.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	w := dpx(float64(node.Image.Bounds().Dx()), zoom)
 	if val, ok := node.Token.(html.ElementToken).Attributes["width"]; ok {
 		fVal, err := strconv.ParseFloat(val, 64)
 		if err != nil {
 			fVal = float64(node.Image.Bounds().Dx())
 		}
-		w = dpx(fVal, l.wrap.Zoom)
+		w = dpx(fVal, zoom)
 	}
 	l.add_inline_child(node, w, "image", "", l.wrap.Frame)
 }
 
 func (l *BlockLayout) iframe(node *html.HtmlNode) {
-	w := IFRAME_WIDTH_PX + dpx(2, l.wrap.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	w := IFRAME_WIDTH_PX + dpx(2, zoom)
 	if val, ok := node.Token.(html.ElementToken).Attributes["width"]; ok {
 		fVal, err := strconv.ParseFloat(val, 64)
 		if err != nil {
 			fVal = float64(IFRAME_WIDTH_PX + 2)
 		}
-		w = dpx(fVal, l.wrap.Zoom)
+		w = dpx(fVal, zoom)
 	}
 	l.add_inline_child(node, w, "iframe", "", l.wrap.Frame)
 }
@@ -296,10 +291,11 @@ func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_cla
 	if l.cursor_x+w > l.wrap.X+l.wrap.Width {
 		l.new_line()
 	}
-	line := l.wrap.Children[len(l.wrap.Children)-1]
+	line := l.temp_children[len(l.temp_children)-1]
 	var previous_word *LayoutNode
-	if len(line.Children) > 0 {
-		previous_word = line.Children[len(line.Children)-1]
+	// warning: not using get
+	if len(line.Children.value) > 0 {
+		previous_word = line.Children.Get()[len(line.Children.Get())-1]
 	}
 	var child *LayoutNode
 	if child_class == "text" {
@@ -313,18 +309,20 @@ func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_cla
 	} else {
 		panic("not implemented")
 	}
-	line.Children = append(line.Children, child)
-	l.cursor_x += w + fnt.Measure(get_font(node.Style, l.wrap.Zoom), " ")
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	// warning: not using get
+	line.Children.Set(append(line.Children.value, child))
+	l.cursor_x += w + fnt.Measure(get_font(node.Style, zoom), " ")
 }
 
 func (l *BlockLayout) new_line() {
 	l.cursor_x = 0
 	var last_line *LayoutNode
-	if len(l.wrap.Children) > 0 {
-		last_line = l.wrap.Children[len(l.wrap.Children)-1]
+	if len(l.temp_children) > 0 {
+		last_line = l.temp_children[len(l.temp_children)-1]
 	}
 	new_line := NewLayoutNode(NewLineLayout(), l.wrap.Node, l.wrap, last_line, l.wrap.Frame)
-	l.wrap.Children = append(l.wrap.Children, new_line)
+	l.temp_children = append(l.temp_children, new_line)
 }
 
 type LineLayout struct {
@@ -336,7 +334,7 @@ func NewLineLayout() *LineLayout {
 }
 
 func (l *LineLayout) Layout() {
-	l.wrap.Zoom = l.wrap.Parent.Zoom
+	l.wrap.Zoom.Copy(l.wrap.Parent.Zoom)
 	l.wrap.Width = l.wrap.Parent.Width
 	l.wrap.X = l.wrap.Parent.X
 
@@ -346,17 +344,17 @@ func (l *LineLayout) Layout() {
 		l.wrap.Y = l.wrap.Parent.Y
 	}
 
-	for _, word := range l.wrap.Children {
+	for _, word := range l.wrap.Children.Get() {
 		word.Layout.Layout()
 	}
 
 	var maxAscent float64
-	for _, item := range l.wrap.Children {
+	for _, item := range l.wrap.Children.Get() {
 		maxAscent = max(maxAscent, item.Ascent)
 	}
 
 	baseline := l.wrap.Y + maxAscent
-	for _, item := range l.wrap.Children {
+	for _, item := range l.wrap.Children.Get() {
 		switch item.Layout.(type) {
 		case *TextLayout:
 			item.Y = baseline - item.Ascent/1.25
@@ -366,7 +364,7 @@ func (l *LineLayout) Layout() {
 	}
 
 	var maxDescent float64
-	for _, item := range l.wrap.Children {
+	for _, item := range l.wrap.Children.Get() {
 		maxDescent = max(maxDescent, item.Descent)
 	}
 
@@ -381,10 +379,10 @@ func (l *LineLayout) Paint() []html.Command {
 	return []html.Command{}
 }
 
-func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
+func (l *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 	outline_rect := rect.NewRectEmpty()
 	var outline_node *html.HtmlNode
-	for _, child := range d.wrap.Children {
+	for _, child := range l.wrap.Children.Get() {
 		var outline_str string
 		if child.Node.Parent != nil {
 			outline_str = child.Node.Parent.Style["outline"]
@@ -396,17 +394,18 @@ func (d *LineLayout) PaintEffects(cmds []html.Command) []html.Command {
 		}
 	}
 	if outline_node != nil {
-		paint_outline(outline_node, &cmds, outline_rect, d.wrap.Zoom)
+		zoom := l.wrap.Zoom.Read(l.wrap.Children)
+		paint_outline(outline_node, &cmds, outline_rect, zoom)
 	}
 	return cmds
 }
 
-func (d *LineLayout) ShouldPaint() bool {
+func (l *LineLayout) ShouldPaint() bool {
 	return true
 }
 
-func (d *LineLayout) Wrap(wrap *LayoutNode) {
-	d.wrap = wrap
+func (l *LineLayout) Wrap(wrap *LayoutNode) {
+	l.wrap = wrap
 }
 
 type TextLayout struct {
@@ -421,8 +420,11 @@ func NewTextLayout(word string) *TextLayout {
 }
 
 func (l *TextLayout) Layout() {
-	l.wrap.Zoom = l.wrap.Parent.Zoom
-	l.wrap.Font = get_font(l.wrap.Node.Style, l.wrap.Zoom)
+	// note: textlayout doesnt have children
+	l.wrap.Children.dirty = false
+	l.wrap.Zoom.Copy(l.wrap.Parent.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	l.wrap.Font = get_font(l.wrap.Node.Style, zoom)
 
 	l.wrap.Width = fnt.Measure(l.wrap.Font, l.word)
 
@@ -468,8 +470,9 @@ func NewEmbedLayout() *EmbedLayout {
 }
 
 func (l *EmbedLayout) Layout() {
-	l.wrap.Zoom = l.wrap.Parent.Zoom
-	l.wrap.Font = get_font(l.wrap.Node.Style, l.wrap.Zoom)
+	l.wrap.Zoom.Copy(l.wrap.Parent.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	l.wrap.Font = get_font(l.wrap.Node.Style, zoom)
 
 	if l.wrap.Previous != nil {
 		space := fnt.Measure(l.wrap.Previous.Font, " ")
@@ -495,7 +498,10 @@ func NewInputLayout() *InputLayout {
 
 func (l *InputLayout) Layout() {
 	l.EmbedLayout.Layout()
-	l.wrap.Width = dpx(INPUT_WIDTH_PX, l.wrap.Zoom)
+	// note: inputlayout doesnt have children
+	l.wrap.Children.dirty = false
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	l.wrap.Width = dpx(INPUT_WIDTH_PX, zoom)
 	l.wrap.Height = fnt.Linespace(l.wrap.Font)
 	l.wrap.Ascent = l.wrap.Height
 	l.wrap.Descent = 0
@@ -549,18 +555,19 @@ func (l *InputLayout) Paint() []html.Command {
 	return cmds
 }
 
-func (d *InputLayout) PaintEffects(cmds []html.Command) []html.Command {
-	cmds = paint_visual_effects(d.wrap.Node, cmds, d.self_rect())
-	paint_outline(d.wrap.Node, &cmds, d.self_rect(), d.wrap.Zoom)
+func (l *InputLayout) PaintEffects(cmds []html.Command) []html.Command {
+	cmds = paint_visual_effects(l.wrap.Node, cmds, l.self_rect())
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	paint_outline(l.wrap.Node, &cmds, l.self_rect(), zoom)
 	return cmds
 }
 
-func (d *InputLayout) ShouldPaint() bool {
+func (l *InputLayout) ShouldPaint() bool {
 	return true
 }
 
-func (d *InputLayout) Wrap(wrap *LayoutNode) {
-	d.wrap = wrap
+func (l *InputLayout) Wrap(wrap *LayoutNode) {
+	l.wrap = wrap
 }
 
 func (l *InputLayout) self_rect() *rect.Rect {
@@ -581,6 +588,10 @@ func NewImageLayout() *ImageLayout {
 func (l *ImageLayout) Layout() {
 	l.EmbedLayout.Layout()
 
+	// note: imagelayout doesnt have children
+	l.wrap.Children.dirty = false
+
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
 	width_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["width"]
 	height_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["height"]
 	image_width := l.wrap.Node.Image.Bounds().Dx()
@@ -596,25 +607,25 @@ func (l *ImageLayout) Layout() {
 		if err != nil {
 			fValH = float64(image_height)
 		}
-		l.wrap.Width = dpx(fValW, l.wrap.Zoom)
-		l.img_height = dpx(fValH, l.wrap.Zoom)
+		l.wrap.Width = dpx(fValW, zoom)
+		l.img_height = dpx(fValH, zoom)
 	} else if width_attr != "" {
 		fValW, err := strconv.ParseFloat(width_attr, 64)
 		if err != nil {
 			fValW = float64(image_width)
 		}
-		l.wrap.Width = dpx(fValW, l.wrap.Zoom)
+		l.wrap.Width = dpx(fValW, zoom)
 		l.img_height = l.wrap.Width / aspect_ratio
 	} else if height_attr != "" {
 		fValH, err := strconv.ParseFloat(height_attr, 64)
 		if err != nil {
 			fValH = float64(image_height)
 		}
-		l.img_height = dpx(fValH, l.wrap.Zoom)
+		l.img_height = dpx(fValH, zoom)
 		l.wrap.Width = l.img_height * aspect_ratio
 	} else {
-		l.wrap.Width = dpx(float64(image_width), l.wrap.Zoom)
-		l.img_height = dpx(float64(image_height), l.wrap.Zoom)
+		l.wrap.Width = dpx(float64(image_width), zoom)
+		l.img_height = dpx(float64(image_height), zoom)
 	}
 	l.wrap.Height = max(l.img_height, fnt.Linespace(l.wrap.Font))
 	l.wrap.Ascent = l.wrap.Height
@@ -663,6 +674,7 @@ func NewIframeLayout() *IframeLayout {
 func (l *IframeLayout) Layout() {
 	l.EmbedLayout.Layout()
 
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
 	width_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["width"]
 	height_attr := l.wrap.Node.Token.(html.ElementToken).Attributes["height"]
 
@@ -671,9 +683,9 @@ func (l *IframeLayout) Layout() {
 		if err != nil {
 			fValW = float64(IFRAME_WIDTH_PX)
 		}
-		l.wrap.Width = dpx(fValW+2, l.wrap.Zoom)
+		l.wrap.Width = dpx(fValW+2, zoom)
 	} else {
-		l.wrap.Width = dpx(IFRAME_WIDTH_PX+2, l.wrap.Zoom)
+		l.wrap.Width = dpx(IFRAME_WIDTH_PX+2, zoom)
 	}
 
 	if height_attr != "" {
@@ -681,17 +693,17 @@ func (l *IframeLayout) Layout() {
 		if err != nil {
 			fValH = float64(IFRAME_HEIGHT_PX)
 		}
-		l.wrap.Height = dpx(fValH+2, l.wrap.Zoom)
+		l.wrap.Height = dpx(fValH+2, zoom)
 	} else {
-		l.wrap.Height = dpx(IFRAME_HEIGHT_PX+2, l.wrap.Zoom)
+		l.wrap.Height = dpx(IFRAME_HEIGHT_PX+2, zoom)
 	}
 
 	l.wrap.Ascent = l.wrap.Height
 	l.wrap.Descent = 0
 
 	if l.wrap.Node.Frame != nil && l.wrap.Node.Frame.(*Frame).Loaded {
-		l.wrap.Node.Frame.(*Frame).frame_height = l.wrap.Height - dpx(2, l.wrap.Zoom)
-		l.wrap.Node.Frame.(*Frame).frame_width = l.wrap.Width - dpx(2, l.wrap.Zoom)
+		l.wrap.Node.Frame.(*Frame).frame_height = l.wrap.Height - dpx(2, zoom)
+		l.wrap.Node.Frame.(*Frame).frame_width = l.wrap.Width - dpx(2, zoom)
 	}
 }
 
@@ -736,7 +748,8 @@ func (l *IframeLayout) PaintEffects(cmds []html.Command) []html.Command {
 	rct := rect.NewRect(l.wrap.X, l.wrap.Y+l.wrap.Height,
 		l.wrap.X+l.wrap.Width, l.wrap.Y+l.wrap.Height)
 
-	diff := dpx(1, l.wrap.Zoom)
+	zoom := l.wrap.Zoom.Read(l.wrap.Children)
+	diff := dpx(1, zoom)
 	offsetX, offsetY := l.wrap.X+diff, l.wrap.Y+diff
 	cmds = []html.Command{html.NewTransform(offsetX, offsetY, rct, l.wrap.Node, cmds)}
 	inner_rect := rect.NewRect(
@@ -746,7 +759,7 @@ func (l *IframeLayout) PaintEffects(cmds []html.Command) []html.Command {
 	internal_cmds := cmds
 	internal_cmds = append(internal_cmds, html.NewDrawBlend(1.0, "destination-in", nil, []html.Command{html.NewDrawRRect(inner_rect, 0, "white")}))
 	cmds = []html.Command{html.NewDrawBlend(1.0, "source-over", l.wrap.Node, internal_cmds)}
-	paint_outline(l.wrap.Node, &cmds, rct, l.wrap.Zoom)
+	paint_outline(l.wrap.Node, &cmds, rct, zoom)
 	cmds = paint_visual_effects(l.wrap.Node, cmds, rct)
 	return cmds
 }
@@ -760,7 +773,7 @@ func PaintTree(l *LayoutNode, displayList *[]html.Command) {
 	if iframe, ok := l.Layout.(*IframeLayout); ok && iframe.wrap.Node.Frame != nil && iframe.wrap.Node.Frame.(*Frame).Loaded {
 		PaintTree(iframe.wrap.Node.Frame.(*Frame).Document, &cmds)
 	} else {
-		for _, child := range l.Children {
+		for _, child := range l.Children.Get() {
 			PaintTree(child, &cmds)
 		}
 	}
@@ -773,14 +786,14 @@ func PaintTree(l *LayoutNode, displayList *[]html.Command) {
 
 func PrintTree(l *LayoutNode, indent int) {
 	fmt.Println(strings.Repeat(" ", indent) + l.Layout.String())
-	for _, child := range l.Children {
+	for _, child := range l.Children.Get() {
 		PrintTree(child, indent+2)
 	}
 }
 
 func LayoutTreeToList(tree *LayoutNode) []*LayoutNode {
 	list := []*LayoutNode{tree}
-	for _, child := range tree.Children {
+	for _, child := range tree.Children.Get() {
 		list = append(list, LayoutTreeToList(child)...)
 	}
 	return list

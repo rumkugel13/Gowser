@@ -298,7 +298,7 @@ func (f *Frame) Render() {
 
 	if f.needs_layout {
 		start := time.Now()
-		f.Document.Layout.(*DocumentLayout).LayoutWithZoom(f.zoom)
+		f.Document.Layout.(*DocumentLayout).LayoutWithZoom(f.tab.zoom)
 		if PRINT_DOCUMENT_LAYOUT {
 			PrintTree(f.Document, 0)
 		}
@@ -341,7 +341,7 @@ func (f *Frame) click(x, y float64) {
 			// pass, text token
 		} else if elt.Tag == "iframe" {
 			abs_bounds := AbsoluteBoundsForObj(obj.LayoutObject.(*LayoutNode))
-			border := dpx(1.0, obj.LayoutObject.(*LayoutNode).Zoom)
+			border := dpx(1.0, obj.LayoutObject.(*LayoutNode).Zoom.Get())
 			new_x := x - abs_bounds.Left - border
 			new_y := y - abs_bounds.Top - border
 			obj.Frame.(*Frame).click(new_x, new_y)
@@ -488,7 +488,7 @@ func (f *Frame) keypress(char rune) {
 			obj = obj.Parent
 			_, isBlock = obj.Layout.(*BlockLayout)
 		}
-		obj.Layout.(*BlockLayout).children_dirty = true
+		obj.Children.Mark()
 		f.SetNeedsRender()
 	}
 }
@@ -530,7 +530,7 @@ func (f *Frame) backspace() {
 			obj = obj.Parent
 			_, isBlock = obj.Layout.(*BlockLayout)
 		}
-		obj.Layout.(*BlockLayout).children_dirty = true
+		obj.Children.Mark()
 		f.SetNeedsRender()
 	}
 }

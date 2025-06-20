@@ -175,9 +175,9 @@ func (a *AccessibilityNode) compute_bounds() []*rect.Rect {
 		inline = inline.Parent
 	}
 
-	for _, line := range inline.LayoutObject.(*LayoutNode).Children {
+	for _, line := range inline.LayoutObject.(*LayoutNode).Children.Get() {
 		line_bounds := rect.NewRectEmpty()
-		for _, child := range line.Children {
+		for _, child := range line.Children.Get() {
 			if child.Node.Parent == a.node {
 				line_bounds = line_bounds.Union(rect.NewRect(
 					child.X, child.Y, child.X+child.Width, child.Y+child.Height,
@@ -246,7 +246,7 @@ func NewFrameAccessibilityNode(node *html.HtmlNode, parent *AccessibilityNode) *
 	return &FrameAccessibilityNode{
 		AccessibilityNode: *NewAccessibilityNode(node, parent),
 		scroll:            node.Frame.(*Frame).scroll,
-		zoom:              node.LayoutObject.(*LayoutNode).Zoom,
+		zoom:              node.LayoutObject.(*LayoutNode).Zoom.Get(),
 	}
 }
 

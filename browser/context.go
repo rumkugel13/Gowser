@@ -298,7 +298,7 @@ func (j *JSContext) innerHTML_set(handle int, s string, window_id int) {
 		obj = obj.Parent
 		_, isBlock = obj.Layout.(*BlockLayout)
 	}
-	obj.Layout.(*BlockLayout).children_dirty = true
+	obj.Children.Mark()
 	j.tab.SetNeedsRenderAllFrames()
 }
 

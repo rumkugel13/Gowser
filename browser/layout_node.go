@@ -13,9 +13,9 @@ type LayoutNode struct {
 	Layout              Layout
 	Parent              *LayoutNode
 	Previous            *LayoutNode
-	Children            []*LayoutNode
+	Children            *ProtectedField[[]*LayoutNode]
 	X, Y, Width, Height float64
-	Zoom                float64
+	Zoom                *ProtectedField[float64]
 	Font                font.Face
 	Ascent              float64
 	Descent             float64
@@ -28,8 +28,13 @@ func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent, previous *Lay
 		Layout:   layout,
 		Parent:   parent,
 		Previous: previous,
-		Children: make([]*LayoutNode, 0),
+		Children: NewProtectedField[[]*LayoutNode](),
 		Frame:    frame,
+		Zoom:     NewProtectedField[float64](),
+	}
+	// note: only invalid for documentlayout
+	if parent != nil {
+		parent.Zoom.invalidations[node.Zoom] = true
 	}
 	layout.Wrap(node)
 	htmlNode.LayoutObject = node

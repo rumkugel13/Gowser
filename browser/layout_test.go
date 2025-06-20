@@ -50,8 +50,8 @@ func TestBasicLayout(t *testing.T) {
 	}
 
 	// Test children
-	if len(doc.Children) != 1 {
-		t.Fatalf("Expected 1 child, got %d", len(doc.Children))
+	if len(doc.Children.Get()) != 1 {
+		t.Fatalf("Expected 1 child, got %d", len(doc.Children.Get()))
 	}
 
 	// Test paint commands
