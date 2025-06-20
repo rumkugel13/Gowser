@@ -49,8 +49,14 @@ func NewDocumentLayout() *DocumentLayout {
 
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
 	d.wrap.Zoom = zoom
-	child := NewLayoutNode(NewBlockLayout(), d.wrap.Node, d.wrap, nil, d.wrap.Frame)
-	d.wrap.Children = append(d.wrap.Children, child)
+
+	var child *LayoutNode
+	if len(d.wrap.Children) == 0 {
+		child = NewLayoutNode(NewBlockLayout(), d.wrap.Node, d.wrap, nil, d.wrap.Frame)
+	} else {
+		child = d.wrap.Children[0]
+	}
+	d.wrap.Children = []*LayoutNode{child}
 
 	d.wrap.Width = WIDTH - 2*dpx(HSTEP, d.wrap.Zoom)
 	d.wrap.X = dpx(HSTEP, d.wrap.Zoom)
@@ -86,12 +92,14 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 type BlockLayout struct {
 	cursor_x, cursor_y float64
 	wrap               *LayoutNode
+	children_dirty     bool
 }
 
 func NewBlockLayout() *BlockLayout {
 	layout := &BlockLayout{
-		cursor_x: HSTEP,
-		cursor_y: VSTEP,
+		cursor_x:       HSTEP,
+		cursor_y:       VSTEP,
+		children_dirty: true,
 	}
 	return layout
 }
@@ -108,21 +116,35 @@ func (l *BlockLayout) Layout() {
 
 	mode := l.layout_mode()
 	if mode == "block" {
-		var previous *LayoutNode
-		for _, child := range l.wrap.Node.Children {
-			next := NewLayoutNode(NewBlockLayout(), child, l.wrap, previous, l.wrap.Frame)
-			l.wrap.Children = append(l.wrap.Children, next)
-			previous = next
+		if l.children_dirty {
+			l.wrap.Children = make([]*LayoutNode, 0)
+			var previous *LayoutNode
+			for _, child := range l.wrap.Node.Children {
+				next := NewLayoutNode(NewBlockLayout(), child, l.wrap, previous, l.wrap.Frame)
+				l.wrap.Children = append(l.wrap.Children, next)
+				previous = next
+			}
+			l.children_dirty = false
 		}
 	} else {
-		l.new_line()
-		l.recurse(l.wrap.Node)
+		if l.children_dirty {
+			l.wrap.Children = make([]*LayoutNode, 0)
+			l.new_line()
+			l.recurse(l.wrap.Node)
+			l.children_dirty = false
+		}
 	}
 
+	if l.children_dirty {
+		panic("children dirty")
+	}
 	for _, child := range l.wrap.Children {
 		child.Layout.Layout()
 	}
 
+	if l.children_dirty {
+		panic("children dirty")
+	}
 	var totalHeight float64
 	for _, child := range l.wrap.Children {
 		totalHeight += child.Height
@@ -136,6 +158,9 @@ func (l *BlockLayout) String() string {
 }
 
 func (l *BlockLayout) Paint() []html.Command {
+	if l.children_dirty {
+		panic("children dirty")
+	}
 	cmds := make([]html.Command, 0)
 
 	bgcolor, ok := l.wrap.Node.Style["background-color"]

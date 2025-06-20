@@ -292,6 +292,13 @@ func (j *JSContext) innerHTML_set(handle int, s string, window_id int) {
 	for _, child := range elt.Children {
 		child.Parent = elt
 	}
+	obj := elt.LayoutObject.(*LayoutNode)
+	_, isBlock := obj.Layout.(*BlockLayout)
+	for !isBlock {
+		obj = obj.Parent
+		_, isBlock = obj.Layout.(*BlockLayout)
+	}
+	obj.Layout.(*BlockLayout).children_dirty = true
 	j.tab.SetNeedsRenderAllFrames()
 }
 

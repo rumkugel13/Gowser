@@ -206,6 +206,7 @@ func (f *Frame) Load(url *u.URL, payload string) {
 	}
 	fmt.Println("Loading iframes took:", time.Since(start))
 
+	f.Document = NewLayoutNode(NewDocumentLayout(), f.Nodes, nil, nil, f)
 	f.SetNeedsRender()
 	f.Loaded = true
 }
@@ -297,7 +298,6 @@ func (f *Frame) Render() {
 
 	if f.needs_layout {
 		start := time.Now()
-		f.Document = NewLayoutNode(NewDocumentLayout(), f.Nodes, nil, f)
 		f.Document.Layout.(*DocumentLayout).LayoutWithZoom(f.zoom)
 		if PRINT_DOCUMENT_LAYOUT {
 			PrintTree(f.Document, 0)
@@ -482,6 +482,13 @@ func (f *Frame) keypress(char rune) {
 		txt := last_text.Token.(html.TextToken)
 		txt.Text += string(char)
 		last_text.Token = txt
+		obj := f.tab.focus.LayoutObject.(*LayoutNode)
+		_, isBlock := obj.Layout.(*BlockLayout)
+		for !isBlock {
+			obj = obj.Parent
+			_, isBlock = obj.Layout.(*BlockLayout)
+		}
+		obj.Layout.(*BlockLayout).children_dirty = true
 		f.SetNeedsRender()
 	}
 }
@@ -497,6 +504,33 @@ func (f *Frame) backspace() {
 		if len(f.tab.focus.Token.(html.ElementToken).Attributes["value"]) > 0 {
 			f.tab.focus.Token.(html.ElementToken).Attributes["value"] = f.tab.focus.Token.(html.ElementToken).Attributes["value"][:len(f.tab.focus.Token.(html.ElementToken).Attributes["value"])-1]
 		}
+		f.SetNeedsRender()
+	} else if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Attributes["contenteditable"] != "" {
+		text_nodes := []*html.HtmlNode{}
+		for _, t := range html.TreeToList(f.tab.focus) {
+			if _, text := t.Token.(html.TextToken); text {
+				text_nodes = append(text_nodes, t)
+			}
+		}
+		var last_text *html.HtmlNode
+		if len(text_nodes) > 0 {
+			last_text = text_nodes[len(text_nodes)-1]
+		} else {
+			last_text = html.NewNode(html.NewTextToken(""), f.tab.focus)
+			f.tab.focus.Children = append(f.tab.focus.Children, last_text)
+		}
+		txt := last_text.Token.(html.TextToken)
+		if len(txt.Text) > 0 {
+			txt.Text = txt.Text[:len(txt.Text)-1]
+		}
+		last_text.Token = txt
+		obj := f.tab.focus.LayoutObject.(*LayoutNode)
+		_, isBlock := obj.Layout.(*BlockLayout)
+		for !isBlock {
+			obj = obj.Parent
+			_, isBlock = obj.Layout.(*BlockLayout)
+		}
+		obj.Layout.(*BlockLayout).children_dirty = true
 		f.SetNeedsRender()
 	}
 }
