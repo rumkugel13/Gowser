@@ -49,7 +49,7 @@ func NewDocumentLayout() *DocumentLayout {
 
 func (d *DocumentLayout) LayoutWithZoom(zoom float64) {
 	d.Wrapper.Zoom = zoom
-	child := NewLayoutNode(NewBlockLayout(nil), d.Wrapper.Node, d.Wrapper, d.Wrapper.Frame)
+	child := NewLayoutNode(NewBlockLayout(), d.Wrapper.Node, d.Wrapper, nil, d.Wrapper.Frame)
 	d.Wrapper.Children = append(d.Wrapper.Children, child)
 
 	d.Wrapper.Width = WIDTH - 2*dpx(HSTEP, d.Wrapper.Zoom)
@@ -86,22 +86,20 @@ func (d *DocumentLayout) Wrap(wrap *LayoutNode) {
 type BlockLayout struct {
 	cursor_x, cursor_y float64
 	wrap               *LayoutNode
-	previous           *LayoutNode
 }
 
-func NewBlockLayout(previous *LayoutNode) *BlockLayout {
+func NewBlockLayout() *BlockLayout {
 	layout := &BlockLayout{
 		cursor_x: HSTEP,
 		cursor_y: VSTEP,
-		previous: previous,
 	}
 	return layout
 }
 
 func (l *BlockLayout) Layout() {
 	l.wrap.Zoom = l.wrap.Parent.Zoom
-	if l.previous != nil {
-		l.wrap.Y = l.previous.Y + l.previous.Height
+	if l.wrap.Previous != nil {
+		l.wrap.Y = l.wrap.Previous.Y + l.wrap.Previous.Height
 	} else {
 		l.wrap.Y = l.wrap.Parent.Y
 	}
@@ -112,7 +110,7 @@ func (l *BlockLayout) Layout() {
 	if mode == "block" {
 		var previous *LayoutNode
 		for _, child := range l.wrap.Node.Children {
-			next := NewLayoutNode(NewBlockLayout(previous), child, l.wrap, l.wrap.Frame)
+			next := NewLayoutNode(NewBlockLayout(), child, l.wrap, previous, l.wrap.Frame)
 			l.wrap.Children = append(l.wrap.Children, next)
 			previous = next
 		}
@@ -280,13 +278,13 @@ func (l *BlockLayout) add_inline_child(node *html.HtmlNode, w float64, child_cla
 	}
 	var child *LayoutNode
 	if child_class == "text" {
-		child = NewLayoutNode(NewTextLayout(word, previous_word), node, line, frame)
+		child = NewLayoutNode(NewTextLayout(word), node, line, previous_word, frame)
 	} else if child_class == "input" {
-		child = NewLayoutNode(NewInputLayout(previous_word), node, line, frame)
+		child = NewLayoutNode(NewInputLayout(), node, line, previous_word, frame)
 	} else if child_class == "image" {
-		child = NewLayoutNode(NewImageLayout(previous_word), node, line, frame)
+		child = NewLayoutNode(NewImageLayout(), node, line, previous_word, frame)
 	} else if child_class == "iframe" {
-		child = NewLayoutNode(NewIframeLayout(previous_word), node, line, frame)
+		child = NewLayoutNode(NewIframeLayout(), node, line, previous_word, frame)
 	} else {
 		panic("not implemented")
 	}
@@ -300,19 +298,16 @@ func (l *BlockLayout) new_line() {
 	if len(l.wrap.Children) > 0 {
 		last_line = l.wrap.Children[len(l.wrap.Children)-1]
 	}
-	new_line := NewLayoutNode(NewLineLayout(last_line), l.wrap.Node, l.wrap, l.wrap.Frame)
+	new_line := NewLayoutNode(NewLineLayout(), l.wrap.Node, l.wrap, last_line, l.wrap.Frame)
 	l.wrap.Children = append(l.wrap.Children, new_line)
 }
 
 type LineLayout struct {
-	wrap     *LayoutNode
-	previous *LayoutNode
+	wrap *LayoutNode
 }
 
-func NewLineLayout(previous *LayoutNode) *LineLayout {
-	return &LineLayout{
-		previous: previous,
-	}
+func NewLineLayout() *LineLayout {
+	return &LineLayout{}
 }
 
 func (l *LineLayout) Layout() {
@@ -320,8 +315,8 @@ func (l *LineLayout) Layout() {
 	l.wrap.Width = l.wrap.Parent.Width
 	l.wrap.X = l.wrap.Parent.X
 
-	if l.previous != nil {
-		l.wrap.Y = l.previous.Y + l.previous.Height
+	if l.wrap.Previous != nil {
+		l.wrap.Y = l.wrap.Previous.Y + l.wrap.Previous.Height
 	} else {
 		l.wrap.Y = l.wrap.Parent.Y
 	}
@@ -390,15 +385,13 @@ func (d *LineLayout) Wrap(wrap *LayoutNode) {
 }
 
 type TextLayout struct {
-	word     string
-	wrap     *LayoutNode
-	previous *LayoutNode
+	word string
+	wrap *LayoutNode
 }
 
-func NewTextLayout(word string, previous *LayoutNode) *TextLayout {
+func NewTextLayout(word string) *TextLayout {
 	return &TextLayout{
-		word:     word,
-		previous: previous,
+		word: word,
 	}
 }
 
@@ -408,9 +401,9 @@ func (l *TextLayout) Layout() {
 
 	l.wrap.Width = fnt.Measure(l.wrap.Font, l.word)
 
-	if l.previous != nil {
-		space := fnt.Measure(l.previous.Font, " ")
-		l.wrap.X = l.previous.X + space + l.previous.Width
+	if l.wrap.Previous != nil {
+		space := fnt.Measure(l.wrap.Previous.Font, " ")
+		l.wrap.X = l.wrap.Previous.X + space + l.wrap.Previous.Width
 	} else {
 		l.wrap.X = l.wrap.Parent.X
 	}
@@ -442,23 +435,20 @@ func (d *TextLayout) Wrap(wrap *LayoutNode) {
 }
 
 type EmbedLayout struct {
-	wrap     *LayoutNode
-	previous *LayoutNode
+	wrap *LayoutNode
 }
 
-func NewEmbedLayout(previous *LayoutNode) *EmbedLayout {
-	return &EmbedLayout{
-		previous: previous,
-	}
+func NewEmbedLayout() *EmbedLayout {
+	return &EmbedLayout{}
 }
 
 func (l *EmbedLayout) Layout() {
 	l.wrap.Zoom = l.wrap.Parent.Zoom
 	l.wrap.Font = get_font(l.wrap.Node.Style, l.wrap.Zoom)
 
-	if l.previous != nil {
-		space := fnt.Measure(l.previous.Font, " ")
-		l.wrap.X = l.previous.X + space + l.previous.Width
+	if l.wrap.Previous != nil {
+		space := fnt.Measure(l.wrap.Previous.Font, " ")
+		l.wrap.X = l.wrap.Previous.X + space + l.wrap.Previous.Width
 	} else {
 		l.wrap.X = l.wrap.Parent.X
 	}
@@ -472,9 +462,9 @@ type InputLayout struct {
 	EmbedLayout
 }
 
-func NewInputLayout(previous *LayoutNode) *InputLayout {
+func NewInputLayout() *InputLayout {
 	return &InputLayout{
-		EmbedLayout: *NewEmbedLayout(previous),
+		EmbedLayout: *NewEmbedLayout(),
 	}
 }
 
@@ -557,9 +547,9 @@ type ImageLayout struct {
 	img_height float64
 }
 
-func NewImageLayout(previous *LayoutNode) *ImageLayout {
+func NewImageLayout() *ImageLayout {
 	return &ImageLayout{
-		EmbedLayout: *NewEmbedLayout(previous),
+		EmbedLayout: *NewEmbedLayout(),
 	}
 }
 
@@ -639,9 +629,9 @@ type IframeLayout struct {
 	parent_frame *html.HtmlNode
 }
 
-func NewIframeLayout(previous *LayoutNode) *IframeLayout {
+func NewIframeLayout() *IframeLayout {
 	return &IframeLayout{
-		EmbedLayout: *NewEmbedLayout(previous),
+		EmbedLayout: *NewEmbedLayout(),
 	}
 }
 

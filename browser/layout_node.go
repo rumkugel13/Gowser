@@ -12,6 +12,7 @@ type LayoutNode struct {
 	Node                *html.HtmlNode
 	Layout              Layout
 	Parent              *LayoutNode
+	Previous            *LayoutNode
 	Children            []*LayoutNode
 	X, Y, Width, Height float64
 	Zoom                float64
@@ -21,11 +22,12 @@ type LayoutNode struct {
 	Frame               *Frame
 }
 
-func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent *LayoutNode, frame *Frame) *LayoutNode {
+func NewLayoutNode(layout Layout, htmlNode *html.HtmlNode, parent, previous *LayoutNode, frame *Frame) *LayoutNode {
 	node := &LayoutNode{
 		Node:     htmlNode,
 		Layout:   layout,
 		Parent:   parent,
+		Previous: previous,
 		Children: make([]*LayoutNode, 0),
 		Frame:    frame,
 	}
