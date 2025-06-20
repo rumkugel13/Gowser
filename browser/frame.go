@@ -465,6 +465,24 @@ func (f *Frame) keypress(char rune) {
 		}
 		f.tab.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
 		f.SetNeedsRender()
+	} else if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Attributes["contenteditable"] != "" {
+		text_nodes := []*html.HtmlNode{}
+		for _, t := range html.TreeToList(f.tab.focus) {
+			if _, text := t.Token.(html.TextToken); text {
+				text_nodes = append(text_nodes, t)
+			}
+		}
+		var last_text *html.HtmlNode
+		if len(text_nodes) > 0 {
+			last_text = text_nodes[len(text_nodes)-1]
+		} else {
+			last_text = html.NewNode(html.NewTextToken(""), f.tab.focus)
+			f.tab.focus.Children = append(f.tab.focus.Children, last_text)
+		}
+		txt := last_text.Token.(html.TextToken)
+		txt.Text += string(char)
+		last_text.Token = txt
+		f.SetNeedsRender()
 	}
 }
 

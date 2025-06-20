@@ -71,6 +71,8 @@ func IsFocusable(node *HtmlNode) bool {
 		return false
 	} else if _, ok := node.Token.(ElementToken).Attributes["tabindex"]; ok {
 		return true
+	} else if _, ok := node.Token.(ElementToken).Attributes["contenteditable"]; ok {
+		return true
 	} else {
 		return slices.Contains([]string{"input", "button", "a"}, node.Token.(ElementToken).Tag)
 	}

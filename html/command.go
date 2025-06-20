@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"slices"
 
-	// "image/draw"
 	fnt "gowser/font"
 	"gowser/rect"
 	"strings"

@@ -156,11 +156,29 @@ func (l *BlockLayout) Paint() []html.Command {
 		rect := html.NewDrawRRect(l.wrap.self_rect(), actualRadius, bgcolor)
 		cmds = append(cmds, rect)
 	}
+	if _, ok := l.wrap.Node.Token.(html.ElementToken); ok && l.wrap.Node.Token.(html.ElementToken).IsFocused && l.wrap.Node.Token.(html.ElementToken).Attributes["contenteditable"] != "" {
+		text_nodes := []*LayoutNode{}
+		for _, t := range LayoutTreeToList(l.wrap) {
+			if _, text := t.Node.Token.(html.TextToken); text {
+				text_nodes = append(text_nodes, t)
+			}
+		}
+		if len(text_nodes) > 0 {
+			cmds = append(cmds, NewDrawCursor(text_nodes[len(text_nodes)-1], text_nodes[len(text_nodes)-1].Width))
+		} else {
+			cmds = append(cmds, NewDrawCursor(l.wrap, 0))
+		}
+	}
 	return cmds
 }
 
-func (d *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
-	cmds = paint_visual_effects(d.wrap.Node, cmds, d.wrap.self_rect())
+func NewDrawCursor(elt *LayoutNode, offset float64) *html.DrawLine {
+	x := elt.X + offset
+	return html.NewDrawLine(x, elt.Y, x, elt.Y+elt.Height, "red", 1)
+}
+
+func (l *BlockLayout) PaintEffects(cmds []html.Command) []html.Command {
+	cmds = paint_visual_effects(l.wrap.Node, cmds, l.wrap.self_rect())
 	return cmds
 }
 
@@ -510,8 +528,7 @@ func (l *InputLayout) Paint() []html.Command {
 	cmds = append(cmds, html.NewDrawText(l.wrap.X, l.wrap.Y, text, l.wrap.Font, color))
 
 	if l.wrap.Node.Token.(html.ElementToken).IsFocused && l.wrap.Node.Token.(html.ElementToken).Tag == "input" {
-		cx := l.wrap.X + fnt.Measure(l.wrap.Font, text)
-		cmds = append(cmds, html.NewDrawLine(cx, l.wrap.Y, cx, l.wrap.Y+l.wrap.Height, "black", 1))
+		cmds = append(cmds, NewDrawCursor(l.wrap, fnt.Measure(l.wrap.Font, text)))
 	}
 
 	return cmds
