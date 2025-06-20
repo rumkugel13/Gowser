@@ -500,7 +500,7 @@ func (f *Frame) scroll_down() {
 }
 
 func (f *Frame) scroll_to(elt *html.HtmlNode) {
-	if !(f.needs_style || f.needs_layout) {
+	if f.needs_style || f.needs_layout {
 		panic("scroll_to called without needs_style or needs_layout")
 	}
 	layoutNodes := LayoutTreeToList(f.Document)
