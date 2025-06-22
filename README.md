@@ -85,7 +85,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [ ] Exercises (Optional)
       - [x] Fonts (font-family)
       - [ ] Width/Height
-      - [ ] Class selectors
+      - [x] Class selectors
       - [ ] display property
       - [ ] Shorthand Properties
       - [ ] Inline Style Sheets

@@ -153,7 +153,13 @@ func ParseOutline(outline_str string) (int, string) {
 }
 
 func (p *CSSParser) simple_selector() Selector {
-	var out Selector = NewTagSelector(strings.ToLower(p.word()))
+	var out Selector
+	word := strings.ToLower(p.word())
+	if word[0] == '.' {
+		out = NewClassSelector(word)
+	} else {
+		out = NewTagSelector(word)
+	}
 	if p.i < len(p.style) && p.style[p.i] == ':' {
 		p.literal(':')
 		pseudoclass := strings.ToLower(p.word())

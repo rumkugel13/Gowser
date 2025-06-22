@@ -1,5 +1,10 @@
 package browser
 
+import (
+	"slices"
+	"strings"
+)
+
 type Selector interface {
 	Matches(node *HtmlNode) bool
 	Priority() int
@@ -22,6 +27,26 @@ func (s *TagSelector) Matches(node *HtmlNode) bool {
 }
 
 func (s *TagSelector) Priority() int {
+	return s.priority
+}
+
+type ClassSelector struct {
+	Class    string
+	priority int
+}
+
+func NewClassSelector(class string) *ClassSelector {
+	return &ClassSelector{Class: class, priority: 10}
+}
+
+func (s *ClassSelector) Matches(node *HtmlNode) bool {
+	if element, ok := node.Token.(ElementToken); ok {
+		return slices.Contains(strings.Fields(element.Attributes["class"]), s.Class[1:])
+	}
+	return false
+}
+
+func (s *ClassSelector) Priority() int {
 	return s.priority
 }
 
