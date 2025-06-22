@@ -11,7 +11,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [X] Receive and Split HTTP Response
    - [X] Print Text
    - [ ] Exercises (Optional)
-     - [ ] HTTP/1.1
+     - [x] HTTP/1.1
      - [ ] File URLs
      - [ ] data
      - [ ] Entities

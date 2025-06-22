@@ -82,7 +82,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, []byte,
 		method = "POST"
 	}
 
-	request := method + " " + u.path + " HTTP/1.0\r\n"
+	request := method + " " + u.path + " HTTP/1.1\r\n"
 	if cookie, ok := COOKIE_JAR[u.host]; ok {
 		cookie, params := cookie.cookie, cookie.params
 		allow_cookie := true
@@ -100,6 +100,8 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, []byte,
 		request += "Content-Length: " + strconv.Itoa(length) + "\r\n"
 	}
 	request += "Host: " + u.host + "\r\n"
+	request += "Connection: close\r\n"
+	request += "User-Agent: Gowser\r\n"
 	request += "\r\n"
 
 	if payload != "" {

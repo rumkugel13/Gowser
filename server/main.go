@@ -102,7 +102,7 @@ func handle_connection(conn net.Conn) {
 	}
 	status, body := do_request(session, method, url, headers, body)
 
-	response := "HTTP/1.0 " + status + "\r\n"
+	response := "HTTP/1.1 " + status + "\r\n"
 	response += "Content-length: " + strconv.Itoa(len(body)) + "\r\n"
 	if _, ok := headers["cookie"]; !ok {
 		template := "Set-Cookie: token=%s; SameSite=Lax\r\n"
@@ -110,6 +110,7 @@ func handle_connection(conn net.Conn) {
 	}
 	csp := "default-src http://localhost:8000"
 	response += "Content-Security-Policy: " + csp + "\r\n"
+	response += "Connection: close\r\n"
 	response += "\r\n" + body
 	conn.Write([]byte(response))
 	// closed by defer
