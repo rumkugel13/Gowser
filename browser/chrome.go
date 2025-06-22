@@ -29,7 +29,7 @@ type Chrome struct {
 
 func NewChrome(browser *Browser) *Chrome {
 	chrome := &Chrome{browser: browser, address_bar: ""}
-	chrome.font = fnt.GetFont(20, "normal", "roman")
+	chrome.font = fnt.GetFont("Arial", 20, "normal", "roman")
 	chrome.font_height = fnt.Linespace(chrome.font)
 
 	chrome.padding = 5

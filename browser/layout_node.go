@@ -70,6 +70,7 @@ func NewLayoutNode(layout Layout, htmlNode *HtmlNode, parent, previous *LayoutNo
 		node.Zoom = NewProtectedField[float64](node, "zoom", parent, &[]ProtectedMarker{node.Parent.Zoom})
 		node.Font = NewProtectedField[font.Face](node, "font", parent, &[]ProtectedMarker{
 			node.Zoom,
+			node.Node.Style["font-family"],
 			node.Node.Style["font-weight"],
 			node.Node.Style["font-style"],
 			node.Node.Style["font-size"],
@@ -90,6 +91,7 @@ func NewLayoutNode(layout Layout, htmlNode *HtmlNode, parent, previous *LayoutNo
 		node.Zoom = NewProtectedField[float64](node, "zoom", parent, &[]ProtectedMarker{node.Parent.Zoom})
 		node.Font = NewProtectedField[font.Face](node, "font", parent, &[]ProtectedMarker{
 			node.Zoom,
+			node.Node.Style["font-family"],
 			node.Node.Style["font-weight"],
 			node.Node.Style["font-style"],
 			node.Node.Style["font-size"],

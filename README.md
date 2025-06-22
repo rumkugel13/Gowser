@@ -83,7 +83,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Refactor BlockLayout to move the font properties to CSS
     - [x] Move most tag-specific reasoning to a browser style sheet
     - [ ] Exercises (Optional)
-      - [ ] Fonts (font-family)
+      - [x] Fonts (font-family)
       - [ ] Width/Height
       - [ ] Class selectors
       - [ ] display property

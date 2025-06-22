@@ -11,6 +11,7 @@ import (
 
 var (
 	CSS_PROPERTIES = map[string]string{
+		"font-family": "inherit",
 		"font-size": "inherit", "font-weight": "inherit",
 		"font-style": "inherit", "color": "inherit",
 		"opacity": "1.0", "transition": "",

@@ -951,6 +951,7 @@ func paint_outline(node *HtmlNode, cmds *[]Command, rct *rect.Rect, zoom float64
 }
 
 func get_font[T any](css_style map[string]*ProtectedField[string], zoom float64, notify *ProtectedField[T]) font.Face {
+	family := css_style["font-family"].Read(notify)
 	weight := css_style["font-weight"].Read(notify)
 	style := css_style["font-style"].Read(notify)
 	fSize, err := strconv.ParseFloat(strings.TrimSuffix(css_style["font-size"].Read(notify), "px"), 64)
@@ -958,5 +959,5 @@ func get_font[T any](css_style map[string]*ProtectedField[string], zoom float64,
 		fSize = 16 // Default font size if parsing fails
 	}
 	font_size := dpx(fSize*0.75, zoom)
-	return fnt.GetFont(font_size, weight, style)
+	return fnt.GetFont(family, font_size, weight, style)
 }

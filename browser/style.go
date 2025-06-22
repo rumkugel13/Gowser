@@ -9,6 +9,7 @@ import (
 
 var (
 	INHERITED_PROPERTIES = map[string]string{
+		"font-family": "Arial",
 		"font-size":   "16px",
 		"font-style":  "normal",
 		"font-weight": "normal",

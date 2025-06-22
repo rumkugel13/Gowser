@@ -16,6 +16,7 @@ var (
 )
 
 type FontKey struct {
+	Family string
 	Size   float64
 	Weight string
 	Style  string
@@ -26,13 +27,13 @@ type FontItem struct {
 	Label string
 }
 
-func GetFont(size float64, weight, style string) fnt.Face {
-	key := FontKey{Size: size, Weight: weight, Style: style}
+func GetFont(family string, size float64, weight, style string) fnt.Face {
+	key := FontKey{Family:family, Size: size, Weight: weight, Style: style}
 	if fontItem, exists := FONT_CACHE[key]; exists {
 		return fontItem.Font
 	}
 
-	font := sysfont.NewFinder(nil).Match(weight + " " + style)
+	font := sysfont.NewFinder(nil).Match(family + " " + weight + " " + style)
 	fontFace, err := gg.LoadFontFace(font.Filename, size)
 	if err != nil {
 		panic(fmt.Sprint("Error loading font:", font))
