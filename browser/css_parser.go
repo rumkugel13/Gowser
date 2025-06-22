@@ -1,4 +1,4 @@
-package css
+package browser
 
 import (
 	"cmp"
@@ -7,10 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-)
-
-const (
-	REFRESH_RATE_SEC = 0.033
 )
 
 type CSSParser struct {

@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"gowser/html"
 	"gowser/url"
 )
 
@@ -9,16 +8,16 @@ type CommitData struct {
 	url                *url.URL
 	scroll             *float64
 	height             float64
-	display_list       []html.Command
-	composited_updates map[*html.HtmlNode]html.VisualEffectCommand
+	display_list       []Command
+	composited_updates map[*HtmlNode]VisualEffectCommand
 	accessibility_tree *AccessibilityNode
-	focus              *html.HtmlNode
+	focus              *HtmlNode
 	root_frame_focused bool
 }
 
-func NewCommitData(url *url.URL, scroll *float64, height float64, display_list []html.Command,
-	composited_updates map[*html.HtmlNode]html.VisualEffectCommand, accessibility_tree *AccessibilityNode,
-	focus *html.HtmlNode, root_frame_focused bool) *CommitData {
+func NewCommitData(url *url.URL, scroll *float64, height float64, display_list []Command,
+	composited_updates map[*HtmlNode]VisualEffectCommand, accessibility_tree *AccessibilityNode,
+	focus *HtmlNode, root_frame_focused bool) *CommitData {
 	return &CommitData{
 		url:                url,
 		scroll:             scroll,

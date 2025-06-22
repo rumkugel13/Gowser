@@ -2,8 +2,6 @@ package browser
 
 import (
 	"fmt"
-	"gowser/css"
-	"gowser/html"
 	"gowser/task"
 	"os"
 	"time"
@@ -16,6 +14,7 @@ var (
 )
 
 func init() {
+	os.Chdir(os.Getenv("WORKSPACE_DIR"))
 	data, err := os.ReadFile("runtime.js")
 	if err != nil {
 		fmt.Println("Error loading js runtime:", err)
@@ -29,8 +28,8 @@ func init() {
 type JSContext struct {
 	ctx            *duk.Context
 	tab            *Tab
-	node_to_handle map[*html.HtmlNode]int
-	handle_to_node map[int]*html.HtmlNode
+	node_to_handle map[*HtmlNode]int
+	handle_to_node map[int]*HtmlNode
 	Discarded      bool
 	origin         string
 }
@@ -39,8 +38,8 @@ func NewJSContext(tab *Tab, origin string) *JSContext {
 	js := &JSContext{
 		ctx:            duk.New(),
 		tab:            tab,
-		node_to_handle: make(map[*html.HtmlNode]int),
-		handle_to_node: make(map[int]*html.HtmlNode),
+		node_to_handle: make(map[*HtmlNode]int),
+		handle_to_node: make(map[int]*HtmlNode),
 		Discarded:      false,
 		origin:         origin,
 	}
@@ -205,7 +204,7 @@ func (j *JSContext) Run(script, code string, window_id int) (string, error) {
 	return val, nil
 }
 
-func (j *JSContext) DispatchEvent(eventType string, elt *html.HtmlNode, window_id int) bool {
+func (j *JSContext) DispatchEvent(eventType string, elt *HtmlNode, window_id int) bool {
 	handle := -1
 	if val, ok := j.node_to_handle[elt]; ok {
 		handle = val
@@ -243,12 +242,12 @@ func log(ctx *duk.Context) int {
 	return 0
 }
 
-func (j *JSContext) querySelectorAll(selector_text string, window_id int) []*html.HtmlNode {
+func (j *JSContext) querySelectorAll(selector_text string, window_id int) []*HtmlNode {
 	frame := j.tab.window_id_to_frame[window_id]
 	j.throw_if_cross_origin(frame)
-	selector := css.NewCSSParser(selector_text).Selector()
-	var nodes []*html.HtmlNode
-	for _, node := range html.TreeToList(j.tab.root_frame.Nodes) {
+	selector := NewCSSParser(selector_text).Selector()
+	var nodes []*HtmlNode
+	for _, node := range TreeToList(j.tab.root_frame.Nodes) {
 		if selector.Matches(node) {
 			nodes = append(nodes, node)
 		}
@@ -256,7 +255,7 @@ func (j *JSContext) querySelectorAll(selector_text string, window_id int) []*htm
 	return nodes
 }
 
-func (j *JSContext) get_handle(elt *html.HtmlNode) int {
+func (j *JSContext) get_handle(elt *HtmlNode) int {
 	var handle int
 	if node, ok := j.node_to_handle[elt]; !ok {
 		handle = len(j.node_to_handle)
@@ -270,7 +269,7 @@ func (j *JSContext) get_handle(elt *html.HtmlNode) int {
 
 func (j *JSContext) get_attribute(handle int, attribute string) string {
 	elt := j.handle_to_node[handle]
-	attr := elt.Token.(html.ElementToken).Attributes[attribute]
+	attr := elt.Token.(ElementToken).Attributes[attribute]
 	return attr
 }
 
@@ -278,36 +277,46 @@ func (j *JSContext) setAttribute(handle int, attr, value string, window_id int) 
 	frame := j.tab.window_id_to_frame[window_id]
 	j.throw_if_cross_origin(frame)
 	elt := j.handle_to_node[handle]
-	elt.Token.(html.ElementToken).Attributes[attr] = value
+	elt.Token.(ElementToken).Attributes[attr] = value
+	obj := elt.LayoutObject
+	_, iframe := obj.Layout.(*IframeLayout)
+	_, image := obj.Layout.(*ImageLayout)
+	if iframe || image {
+		if attr == "width" || attr == "height" {
+			obj.Width.Mark()
+			obj.Height.Mark()
+		}
+	}
 	j.tab.SetNeedsRenderAllFrames()
 }
 
 func (j *JSContext) innerHTML_set(handle int, s string, window_id int) {
 	frame := j.tab.window_id_to_frame[window_id]
 	j.throw_if_cross_origin(frame)
-	doc := html.NewHTMLParser("<html><body>" + s + "</body></html>").Parse()
+	doc := NewHTMLParser("<html><body>" + s + "</body></html>").Parse()
 	new_nodes := doc.Children[0].Children
 	elt := j.handle_to_node[handle]
 	elt.Children = new_nodes
 	for _, child := range elt.Children {
 		child.Parent = elt
 	}
-	obj := elt.LayoutObject.(*LayoutNode)
+	obj := elt.LayoutObject
 	_, isBlock := obj.Layout.(*BlockLayout)
 	for !isBlock {
 		obj = obj.Parent
 		_, isBlock = obj.Layout.(*BlockLayout)
 	}
 	obj.Children.Mark()
-	j.tab.SetNeedsRenderAllFrames()
+	frame.SetNeedsRender()
 }
 
 func (j *JSContext) style_set(handle int, s string, window_id int) {
 	frame := j.tab.window_id_to_frame[window_id]
 	j.throw_if_cross_origin(frame)
 	elt := j.handle_to_node[handle]
-	elt.Token.(html.ElementToken).Attributes["style"] = s
-	j.tab.SetNeedsRenderAllFrames()
+	elt.Token.(ElementToken).Attributes["style"] = s
+	dirty_style(elt)
+	frame.SetNeedsRender()
 }
 
 func (j *JSContext) xmlHttpRequest_send(method string, url string, body string, is_async bool, handle int, window_id int) string {

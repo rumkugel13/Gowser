@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"gowser/html"
 	u "gowser/url"
 	"image"
 	"math"
@@ -16,7 +15,7 @@ const (
 	WIDTH                    = 800.
 	HEIGHT                   = 600.
 	SCROLL_STEP              = 100.
-	PRINT_DISPLAY_LIST       = false
+	TAB_PRINT_DISPLAY_LIST   = false
 	PRINT_DOCUMENT_LAYOUT    = false
 	PRINT_HTML_TREE          = false
 	PRINT_ACCESSIBILITY_TREE = false
@@ -27,23 +26,25 @@ var (
 )
 
 func init() {
+	os.Chdir(os.Getenv("WORKSPACE_DIR"))
 	image_bytes, err1 := os.ReadFile("Broken_Image.png")
 	image, _, err2 := image.Decode(bytes.NewReader(image_bytes))
 	if err := cmp.Or(err1, err2); err != nil {
-		panic("Could not load broken image: " + err.Error())
+		fmt.Println("Could not load broken image: " + err.Error())
+		return
 	}
 	BROKEN_IMAGE = image
 }
 
 type Tab struct {
-	display_list []html.Command
+	display_list []Command
 
-	url                   *u.URL
-	tab_height            float64
-	history               []*u.URL
-	focus                 *html.HtmlNode
-	focused_frame         *Frame
-	needs_raf_callbacks   bool
+	url           *u.URL
+	tab_height    float64
+	history       []*u.URL
+	focus         *HtmlNode
+	focused_frame *Frame
+	// needs_raf_callbacks   bool
 	needs_accessibility   bool
 	needs_paint           bool
 	root_frame            *Frame
@@ -53,14 +54,14 @@ type Tab struct {
 
 	accessibility_is_on bool
 	accessibility_tree  *AccessibilityNode
-	has_spoken_document bool
-	accessibility_focus bool
-	loaded              bool
+	// has_spoken_document bool
+	// accessibility_focus bool
+	loaded bool
 
 	TaskRunner *TaskRunner
 	browser    *Browser
 
-	composited_updates []*html.HtmlNode
+	composited_updates []*HtmlNode
 	zoom               float64
 
 	window_id_to_frame map[int]*Frame
@@ -128,10 +129,10 @@ func (t *Tab) Render() {
 
 	if t.needs_paint {
 		start := time.Now()
-		t.display_list = make([]html.Command, 0)
+		t.display_list = make([]Command, 0)
 		paint_tree(t.root_frame.Document, &t.display_list)
-		if PRINT_DISPLAY_LIST {
-			html.PrintCommands(t.display_list, 0)
+		if TAB_PRINT_DISPLAY_LIST {
+			PrintCommands(t.display_list, 0)
 		}
 		fmt.Println("Paint took:", time.Since(start))
 		t.needs_paint = false
@@ -155,11 +156,11 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 		frame.js.DispatchRAF(frame.window_id)
 		t.browser.measure.Stop("eval_run_raf_handlers")
 
-		for _, node := range html.TreeToList(frame.Nodes) {
+		for _, node := range TreeToList(frame.Nodes) {
 			for property_name, animation := range node.Animations {
 				value := animation.Animate()
 				if value != "" {
-					node.Style[property_name] = value
+					node.Style[property_name].Set(value)
 					t.composited_updates = append(t.composited_updates, node)
 					t.SetNeedsPaint()
 				}
@@ -192,18 +193,18 @@ func (t *Tab) run_animation_frame(scroll *float64) {
 		scroll = &t.root_frame.scroll
 	}
 
-	var composited_updates map[*html.HtmlNode]html.VisualEffectCommand
+	var composited_updates map[*HtmlNode]VisualEffectCommand
 	if !needs_composite {
-		composited_updates = map[*html.HtmlNode]html.VisualEffectCommand{}
+		composited_updates = map[*HtmlNode]VisualEffectCommand{}
 		for _, node := range t.composited_updates {
 			composited_updates[node] = node.BlendOp
 		}
 	}
-	t.composited_updates = make([]*html.HtmlNode, 0)
+	t.composited_updates = make([]*HtmlNode, 0)
 
 	root_frame_focused := t.focused_frame == nil || t.focused_frame == t.root_frame
-	commit_data := NewCommitData(t.root_frame.url, scroll, math.Ceil(t.root_frame.Document.Height + 2*VSTEP), t.display_list, composited_updates, t.accessibility_tree, t.focus, root_frame_focused)
-	t.display_list = make([]html.Command, 0)
+	commit_data := NewCommitData(t.root_frame.url, scroll, math.Ceil(t.root_frame.Document.Height.Get()+2*VSTEP), t.display_list, composited_updates, t.accessibility_tree, t.focus, root_frame_focused)
+	t.display_list = make([]Command, 0)
 	t.root_frame.scroll_changed_in_frame = false
 
 	t.browser.Commit(t, commit_data)
@@ -271,6 +272,9 @@ func (t *Tab) ZoomBy(increment bool) {
 		t.zoom *= 1 / 1.1
 		t.scroll *= 1 / 1.1
 	}
+	for _, frame := range t.window_id_to_frame {
+		frame.Document.Zoom.Mark()
+	}
 	t.scroll_changed_in_tab = true
 	t.SetNeedsRenderAllFrames()
 }
@@ -278,6 +282,9 @@ func (t *Tab) ZoomBy(increment bool) {
 func (t *Tab) ResetZoom() {
 	t.scroll /= t.zoom
 	t.zoom = 1.0
+	for _, frame := range t.window_id_to_frame {
+		frame.Document.Zoom.Mark()
+	}
 	t.scroll_changed_in_tab = true
 	t.SetNeedsRenderAllFrames()
 }
@@ -305,11 +312,11 @@ func (t *Tab) ScrollDown() {
 	t.SetNeedsPaint()
 }
 
-func paint_tree(layout_object *LayoutNode, displayList *[]html.Command) {
+func paint_tree(layout_object *LayoutNode, displayList *[]Command) {
 	cmds := layout_object.Layout.Paint()
 
-	if _, ok := layout_object.Layout.(*IframeLayout); ok && layout_object.Node.Frame != nil && layout_object.Node.Frame.(*Frame).Loaded {
-		paint_tree(layout_object.Node.Frame.(*Frame).Document, &cmds)
+	if _, ok := layout_object.Layout.(*IframeLayout); ok && layout_object.Node.Frame != nil && layout_object.Node.Frame.Loaded {
+		paint_tree(layout_object.Node.Frame.Document, &cmds)
 	} else {
 		for _, child := range layout_object.Children.Get() {
 			paint_tree(child, &cmds)

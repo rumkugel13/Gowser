@@ -3,8 +3,6 @@ package browser
 import (
 	"bytes"
 	"fmt"
-	"gowser/css"
-	"gowser/html"
 	"gowser/rect"
 	"gowser/task"
 	u "gowser/url"
@@ -21,7 +19,7 @@ import (
 type Frame struct {
 	tab           *Tab
 	parent_frame  *Frame
-	frame_element *html.HtmlNode
+	frame_element *HtmlNode
 	needs_style   bool
 	needs_layout  bool
 	needs_paint   bool
@@ -31,8 +29,8 @@ type Frame struct {
 	scroll_changed_in_frame bool
 	needs_focus_scroll      bool
 	zoom                    float64
-	Nodes                   *html.HtmlNode
-	rules                   []css.Rule
+	Nodes                   *HtmlNode
+	rules                   []Rule
 	url                     *u.URL
 	js                      *JSContext
 	Loaded                  bool
@@ -43,7 +41,7 @@ type Frame struct {
 	window_id    int
 }
 
-func NewFrame(tab *Tab, parent_frame *Frame, frame_element *html.HtmlNode) *Frame {
+func NewFrame(tab *Tab, parent_frame *Frame, frame_element *HtmlNode) *Frame {
 	frame := &Frame{
 		tab:           tab,
 		parent_frame:  parent_frame,
@@ -65,7 +63,8 @@ func (f *Frame) Load(url *u.URL, payload string) {
 	start := time.Now()
 	headers, body, err := url.Request(f.url, payload)
 	if err != nil {
-		panic("Request failed: " + err.Error())
+		fmt.Println("Request failed: " + err.Error())
+		return
 	}
 	fmt.Println("Request took:", time.Since(start))
 
@@ -88,7 +87,7 @@ func (f *Frame) Load(url *u.URL, payload string) {
 	}
 
 	start = time.Now()
-	f.Nodes = html.NewHTMLParser(string(body)).Parse()
+	f.Nodes = NewHTMLParser(string(body)).Parse()
 	if PRINT_HTML_TREE {
 		f.Nodes.PrintTree(0)
 	}
@@ -146,7 +145,7 @@ func (f *Frame) Load(url *u.URL, payload string) {
 		if err != nil {
 			fmt.Println("Error loading stylesheet:", err)
 		} else {
-			f.rules = append(f.rules, css.NewCSSParser(string(style_body)).Parse()...)
+			f.rules = append(f.rules, NewCSSParser(string(style_body)).Parse()...)
 		}
 	}
 	fmt.Println("Loading stylesheets took:", time.Since(start))
@@ -154,7 +153,7 @@ func (f *Frame) Load(url *u.URL, payload string) {
 	start = time.Now()
 	images := f.images(f.Nodes)
 	for _, img := range images {
-		elt, _ := img.Token.(html.ElementToken)
+		elt, _ := img.Token.(ElementToken)
 		src := elt.Attributes["src"]
 		image_url, err := url.Resolve(src)
 		if err != nil {
@@ -185,7 +184,7 @@ func (f *Frame) Load(url *u.URL, payload string) {
 	start = time.Now()
 	iframes := f.frames(f.Nodes)
 	for _, iframe := range iframes {
-		elt, _ := iframe.Token.(html.ElementToken)
+		elt, _ := iframe.Token.(ElementToken)
 		src := elt.Attributes["src"]
 		iframe_url, err := url.Resolve(src)
 		if err != nil {
@@ -200,7 +199,8 @@ func (f *Frame) Load(url *u.URL, payload string) {
 		iframe.Frame = NewFrame(f.tab, f, iframe)
 
 		task := task.NewTask(func(i ...interface{}) {
-			iframe.Frame.(*Frame).Load(iframe_url, "")
+			fmt.Println("Loading iframe:", iframe_url)
+			iframe.Frame.Load(iframe_url, "")
 		}, iframe_url)
 		f.tab.TaskRunner.ScheduleTask(task)
 	}
@@ -215,11 +215,11 @@ func (f *Frame) allowed_request(url *u.URL) bool {
 	return f.allowed_origins == nil || slices.Contains(f.allowed_origins, url.Origin())
 }
 
-func (f *Frame) scripts(nodes *html.HtmlNode) []string {
-	flatNodes := html.TreeToList(nodes)
+func (f *Frame) scripts(nodes *HtmlNode) []string {
+	flatNodes := TreeToList(nodes)
 	links := []string{}
 	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "script" {
+		if element, ok := node.Token.(ElementToken); ok && element.Tag == "script" {
 			if src, exists := element.Attributes["src"]; exists {
 				links = append(links, src)
 			}
@@ -228,11 +228,11 @@ func (f *Frame) scripts(nodes *html.HtmlNode) []string {
 	return links
 }
 
-func (f *Frame) links(nodes *html.HtmlNode) []string {
-	flatNodes := html.TreeToList(nodes)
+func (f *Frame) links(nodes *HtmlNode) []string {
+	flatNodes := TreeToList(nodes)
 	links := []string{}
 	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "link" {
+		if element, ok := node.Token.(ElementToken); ok && element.Tag == "link" {
 			if rel, exists := element.Attributes["rel"]; exists && rel == "stylesheet" {
 				if href, exists := element.Attributes["href"]; exists {
 					links = append(links, href)
@@ -243,22 +243,22 @@ func (f *Frame) links(nodes *html.HtmlNode) []string {
 	return links
 }
 
-func (f *Frame) images(nodes *html.HtmlNode) []*html.HtmlNode {
-	flatNodes := html.TreeToList(nodes)
-	images := []*html.HtmlNode{}
+func (f *Frame) images(nodes *HtmlNode) []*HtmlNode {
+	flatNodes := TreeToList(nodes)
+	images := []*HtmlNode{}
 	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "img" {
+		if element, ok := node.Token.(ElementToken); ok && element.Tag == "img" {
 			images = append(images, node)
 		}
 	}
 	return images
 }
 
-func (f *Frame) frames(nodes *html.HtmlNode) []*html.HtmlNode {
-	flatNodes := html.TreeToList(nodes)
-	iframes := []*html.HtmlNode{}
+func (f *Frame) frames(nodes *HtmlNode) []*HtmlNode {
+	flatNodes := TreeToList(nodes)
+	iframes := []*HtmlNode{}
 	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "iframe" {
+		if element, ok := node.Token.(ElementToken); ok && element.Tag == "iframe" {
 			if _, exists := element.Attributes["src"]; exists {
 				iframes = append(iframes, node)
 			}
@@ -288,7 +288,7 @@ func (f *Frame) Render() {
 		}
 		start := time.Now()
 		sort.SliceStable(f.rules, func(i, j int) bool {
-			return css.CascadePriority(f.rules[i]) < css.CascadePriority(f.rules[j])
+			return CascadePriority(f.rules[i]) < CascadePriority(f.rules[j])
 		})
 		Style(f.Nodes, f.rules, f.tab)
 		fmt.Println("Styling took:", time.Since(start))
@@ -336,17 +336,17 @@ func (f *Frame) click(x, y float64) {
 		return
 	}
 	for obj != nil {
-		elt, ok := obj.Token.(html.ElementToken)
+		elt, ok := obj.Token.(ElementToken)
 		if !ok {
 			// pass, text token
 		} else if elt.Tag == "iframe" {
-			abs_bounds := AbsoluteBoundsForObj(obj.LayoutObject.(*LayoutNode))
-			border := dpx(1.0, obj.LayoutObject.(*LayoutNode).Zoom.Get())
+			abs_bounds := AbsoluteBoundsForObj(obj.LayoutObject)
+			border := dpx(1.0, obj.LayoutObject.Zoom.Get())
 			new_x := x - abs_bounds.Left - border
 			new_y := y - abs_bounds.Top - border
-			obj.Frame.(*Frame).click(new_x, new_y)
+			obj.Frame.click(new_x, new_y)
 			return
-		} else if html.IsFocusable(obj) {
+		} else if IsFocusable(obj) {
 			f.focus_element(obj)
 			f.activate_element(obj)
 			f.SetNeedsRender()
@@ -356,14 +356,15 @@ func (f *Frame) click(x, y float64) {
 	}
 }
 
-func (f *Frame) focus_element(node *html.HtmlNode) {
+func (f *Frame) focus_element(node *HtmlNode) {
 	if node != nil && node != f.tab.focus {
 		f.needs_focus_scroll = true
 	}
 	if f.tab.focus != nil {
-		tok := f.tab.focus.Token.(html.ElementToken)
+		tok := f.tab.focus.Token.(ElementToken)
 		tok.IsFocused = false
 		f.tab.focus.Token = tok
+		dirty_style(f.tab.focus)
 	}
 	if f.tab.focused_frame != nil && f.tab.focused_frame != f {
 		f.tab.focused_frame.SetNeedsRender()
@@ -371,21 +372,22 @@ func (f *Frame) focus_element(node *html.HtmlNode) {
 	f.tab.focus = node
 	f.tab.focused_frame = f
 	if node != nil {
-		tok := node.Token.(html.ElementToken)
+		tok := node.Token.(ElementToken)
 		tok.IsFocused = true
 		node.Token = tok
+		dirty_style(node)
 	}
 	f.SetNeedsRender()
 }
 func (f *Frame) advance_tab() {
-	focusable_nodes := []*html.HtmlNode{}
-	for _, node := range html.TreeToList(f.Nodes) {
-		if _, ok := node.Token.(html.ElementToken); ok && html.IsFocusable(node) && html.GetTabIndex(node) >= 0 {
+	focusable_nodes := []*HtmlNode{}
+	for _, node := range TreeToList(f.Nodes) {
+		if _, ok := node.Token.(ElementToken); ok && IsFocusable(node) && GetTabIndex(node) >= 0 {
 			focusable_nodes = append(focusable_nodes, node)
 		}
 	}
 	sort.SliceStable(focusable_nodes, func(i, j int) bool {
-		return html.GetTabIndex(focusable_nodes[i]) < html.GetTabIndex(focusable_nodes[j])
+		return GetTabIndex(focusable_nodes[i]) < GetTabIndex(focusable_nodes[j])
 	})
 
 	idx := 0
@@ -403,8 +405,8 @@ func (f *Frame) advance_tab() {
 	f.SetNeedsRender()
 }
 
-func (f *Frame) activate_element(node *html.HtmlNode) {
-	elt, _ := node.Token.(html.ElementToken)
+func (f *Frame) activate_element(node *HtmlNode) {
+	elt, _ := node.Token.(ElementToken)
 	if elt.Tag == "input" {
 		elt.Attributes["value"] = ""
 		f.SetNeedsRender()
@@ -417,7 +419,7 @@ func (f *Frame) activate_element(node *html.HtmlNode) {
 		}
 	} else if elt.Tag == "button" {
 		for node != nil {
-			elt, _ := node.Token.(html.ElementToken)
+			elt, _ := node.Token.(ElementToken)
 			if elt.Tag == "form" && elt.Attributes["action"] != "" {
 				f.submit_form(node)
 			}
@@ -426,13 +428,13 @@ func (f *Frame) activate_element(node *html.HtmlNode) {
 	}
 }
 
-func (f *Frame) submit_form(elt *html.HtmlNode) {
+func (f *Frame) submit_form(elt *HtmlNode) {
 	if f.js.DispatchEvent("submit", elt, f.window_id) {
 		return
 	}
-	var inputs []*html.ElementToken
-	for _, node := range html.TreeToList(elt) {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {
+	var inputs []*ElementToken
+	for _, node := range TreeToList(elt) {
+		if element, ok := node.Token.(ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {
 			inputs = append(inputs, &element)
 		}
 	}
@@ -447,7 +449,7 @@ func (f *Frame) submit_form(elt *html.HtmlNode) {
 	}
 	body = body[1:]
 
-	url, err := f.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
+	url, err := f.url.Resolve(elt.Token.(ElementToken).Attributes["action"])
 	if err != nil {
 		fmt.Println("Resolving URL failed:", err.Error())
 	} else {
@@ -456,33 +458,33 @@ func (f *Frame) submit_form(elt *html.HtmlNode) {
 }
 
 func (f *Frame) keypress(char rune) {
-	if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Tag == "input" {
-		if _, ok := f.tab.focus.Token.(html.ElementToken).Attributes["value"]; !ok {
+	if f.tab.focus != nil && f.tab.focus.Token.(ElementToken).Tag == "input" {
+		if _, ok := f.tab.focus.Token.(ElementToken).Attributes["value"]; !ok {
 			f.activate_element(f.tab.focus)
 		}
 		if f.js.DispatchEvent("keydown", f.tab.focus, f.window_id) {
 			return
 		}
-		f.tab.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
+		f.tab.focus.Token.(ElementToken).Attributes["value"] += string(char)
 		f.SetNeedsRender()
-	} else if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Attributes["contenteditable"] != "" {
-		text_nodes := []*html.HtmlNode{}
-		for _, t := range html.TreeToList(f.tab.focus) {
-			if _, text := t.Token.(html.TextToken); text {
+	} else if f.tab.focus != nil && f.tab.focus.Token.(ElementToken).Attributes["contenteditable"] != "" {
+		text_nodes := []*HtmlNode{}
+		for _, t := range TreeToList(f.tab.focus) {
+			if _, text := t.Token.(TextToken); text {
 				text_nodes = append(text_nodes, t)
 			}
 		}
-		var last_text *html.HtmlNode
+		var last_text *HtmlNode
 		if len(text_nodes) > 0 {
 			last_text = text_nodes[len(text_nodes)-1]
 		} else {
-			last_text = html.NewNode(html.NewTextToken(""), f.tab.focus)
+			last_text = NewNode(NewTextToken(""), f.tab.focus)
 			f.tab.focus.Children = append(f.tab.focus.Children, last_text)
 		}
-		txt := last_text.Token.(html.TextToken)
+		txt := last_text.Token.(TextToken)
 		txt.Text += string(char)
 		last_text.Token = txt
-		obj := f.tab.focus.LayoutObject.(*LayoutNode)
+		obj := f.tab.focus.LayoutObject
 		_, isBlock := obj.Layout.(*BlockLayout)
 		for !isBlock {
 			obj = obj.Parent
@@ -494,37 +496,37 @@ func (f *Frame) keypress(char rune) {
 }
 
 func (f *Frame) backspace() {
-	if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Tag == "input" {
-		if _, ok := f.tab.focus.Token.(html.ElementToken).Attributes["value"]; !ok {
+	if f.tab.focus != nil && f.tab.focus.Token.(ElementToken).Tag == "input" {
+		if _, ok := f.tab.focus.Token.(ElementToken).Attributes["value"]; !ok {
 			f.activate_element(f.tab.focus)
 		}
 		if f.js.DispatchEvent("keydown", f.tab.focus, f.window_id) {
 			return
 		}
-		if len(f.tab.focus.Token.(html.ElementToken).Attributes["value"]) > 0 {
-			f.tab.focus.Token.(html.ElementToken).Attributes["value"] = f.tab.focus.Token.(html.ElementToken).Attributes["value"][:len(f.tab.focus.Token.(html.ElementToken).Attributes["value"])-1]
+		if len(f.tab.focus.Token.(ElementToken).Attributes["value"]) > 0 {
+			f.tab.focus.Token.(ElementToken).Attributes["value"] = f.tab.focus.Token.(ElementToken).Attributes["value"][:len(f.tab.focus.Token.(ElementToken).Attributes["value"])-1]
 		}
 		f.SetNeedsRender()
-	} else if f.tab.focus != nil && f.tab.focus.Token.(html.ElementToken).Attributes["contenteditable"] != "" {
-		text_nodes := []*html.HtmlNode{}
-		for _, t := range html.TreeToList(f.tab.focus) {
-			if _, text := t.Token.(html.TextToken); text {
+	} else if f.tab.focus != nil && f.tab.focus.Token.(ElementToken).Attributes["contenteditable"] != "" {
+		text_nodes := []*HtmlNode{}
+		for _, t := range TreeToList(f.tab.focus) {
+			if _, text := t.Token.(TextToken); text {
 				text_nodes = append(text_nodes, t)
 			}
 		}
-		var last_text *html.HtmlNode
+		var last_text *HtmlNode
 		if len(text_nodes) > 0 {
 			last_text = text_nodes[len(text_nodes)-1]
 		} else {
-			last_text = html.NewNode(html.NewTextToken(""), f.tab.focus)
+			last_text = NewNode(NewTextToken(""), f.tab.focus)
 			f.tab.focus.Children = append(f.tab.focus.Children, last_text)
 		}
-		txt := last_text.Token.(html.TextToken)
+		txt := last_text.Token.(TextToken)
 		if len(txt.Text) > 0 {
 			txt.Text = txt.Text[:len(txt.Text)-1]
 		}
 		last_text.Token = txt
-		obj := f.tab.focus.LayoutObject.(*LayoutNode)
+		obj := f.tab.focus.LayoutObject
 		_, isBlock := obj.Layout.(*BlockLayout)
 		for !isBlock {
 			obj = obj.Parent
@@ -536,7 +538,7 @@ func (f *Frame) backspace() {
 }
 
 func (f *Frame) clamp_scroll(scroll float64) float64 {
-	height := math.Ceil(f.Document.Height + 2*VSTEP)
+	height := math.Ceil(f.Document.Height.Get() + 2*VSTEP)
 	maxscroll := height - f.frame_height
 	return max(0, min(scroll, maxscroll))
 }
@@ -551,7 +553,7 @@ func (f *Frame) scroll_down() {
 	f.scroll_changed_in_frame = true
 }
 
-func (f *Frame) scroll_to(elt *html.HtmlNode) {
+func (f *Frame) scroll_to(elt *HtmlNode) {
 	if f.needs_style || f.needs_layout {
 		panic("scroll_to called without needs_style or needs_layout")
 	}
@@ -565,11 +567,11 @@ func (f *Frame) scroll_to(elt *html.HtmlNode) {
 	}
 
 	obj := layoutNodes[objIdx]
-	if f.scroll < obj.Y && obj.Y < f.scroll+f.frame_height {
+	if f.scroll < obj.Y.Get() && obj.Y.Get() < f.scroll+f.frame_height {
 		return
 	}
 
-	new_scroll := obj.Y - SCROLL_STEP
+	new_scroll := obj.Y.Get() - SCROLL_STEP
 	f.scroll = f.clamp_scroll(new_scroll)
 	f.scroll_changed_in_frame = true
 	f.tab.SetNeedsPaint()

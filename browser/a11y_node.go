@@ -2,13 +2,12 @@ package browser
 
 import (
 	"fmt"
-	"gowser/html"
 	"gowser/rect"
 	"strings"
 )
 
 type A11yNode interface {
-	Node() *html.HtmlNode
+	Node() *HtmlNode
 	Parent() A11yNode
 	Children() []A11yNode
 	HitTest(float64, float64) A11yNode
@@ -16,12 +15,11 @@ type A11yNode interface {
 	Bounds() []*rect.Rect
 	Role() string
 	Text() string
-	map_to_parent(*rect.Rect)
 	String() string
 }
 
 type AccessibilityNode struct {
-	node     *html.HtmlNode
+	node     *HtmlNode
 	parent   A11yNode
 	children []A11yNode
 	role     string
@@ -29,7 +27,7 @@ type AccessibilityNode struct {
 	bounds   []*rect.Rect
 }
 
-func NewAccessibilityNode(node *html.HtmlNode, parent A11yNode) *AccessibilityNode {
+func NewAccessibilityNode(node *HtmlNode, parent A11yNode) *AccessibilityNode {
 	a := &AccessibilityNode{
 		node:     node,
 		children: make([]A11yNode, 0),
@@ -38,14 +36,14 @@ func NewAccessibilityNode(node *html.HtmlNode, parent A11yNode) *AccessibilityNo
 	}
 	a.bounds = a.compute_bounds()
 
-	if _, isText := node.Token.(html.TextToken); isText {
-		if html.IsFocusable(node.Parent) {
+	if _, isText := node.Token.(TextToken); isText {
+		if IsFocusable(node.Parent) {
 			a.role = "focusable text"
 		} else {
 			a.role = "StaticText"
 		}
 	} else {
-		elt := node.Token.(html.ElementToken)
+		elt := node.Token.(ElementToken)
 		if val, ok := elt.Attributes["role"]; ok {
 			a.role = val
 		} else if elt.Tag == "a" {
@@ -56,7 +54,7 @@ func NewAccessibilityNode(node *html.HtmlNode, parent A11yNode) *AccessibilityNo
 			a.role = "button"
 		} else if elt.Tag == "html" {
 			a.role = "document"
-		} else if html.IsFocusable(node) {
+		} else if IsFocusable(node) {
 			a.role = "focusable"
 		} else if elt.Tag == "img" {
 			a.role = "image"
@@ -104,16 +102,16 @@ func (a *AccessibilityNode) Build() {
 	if a.role == "StaticText" {
 		a.text = a.node.Token.String()
 	} else if a.role == "focusable text" {
-		a.text = "Focusable text: " + a.node.Token.(html.TextToken).Text
+		a.text = "Focusable text: " + a.node.Token.(TextToken).Text
 	} else if a.role == "focusable" {
 		a.text = "Focusable element"
 	} else if a.role == "textbox" {
-		elt, _ := a.node.Token.(html.ElementToken)
+		elt, _ := a.node.Token.(ElementToken)
 		var value string
 		if val, ok := elt.Attributes["value"]; ok {
 			value = val
 		} else if elt.Tag != "input" && len(a.node.Children) > 0 {
-			if txt, isText := a.node.Children[0].Token.(html.TextToken); isText {
+			if txt, isText := a.node.Children[0].Token.(TextToken); isText {
 				value = txt.Text
 			} else {
 				value = ""
@@ -129,7 +127,7 @@ func (a *AccessibilityNode) Build() {
 	} else if a.role == "document" {
 		a.text = "Document"
 	} else if a.role == "image" {
-		elt, _ := a.node.Token.(html.ElementToken)
+		elt, _ := a.node.Token.(ElementToken)
 		if val, ok := elt.Attributes["alt"]; ok {
 			a.text = "Image: " + val
 		} else {
@@ -137,14 +135,14 @@ func (a *AccessibilityNode) Build() {
 		}
 	}
 
-	if elt, ok := a.node.Token.(html.ElementToken); ok && elt.IsFocused {
+	if elt, ok := a.node.Token.(ElementToken); ok && elt.IsFocused {
 		a.text += " is focused"
 	}
 }
 
-func (a *AccessibilityNode) build_internal(child_node *html.HtmlNode) {
+func (a *AccessibilityNode) build_internal(child_node *HtmlNode) {
 	var child A11yNode
-	if elt, ok := child_node.Token.(html.ElementToken); ok && elt.Tag == "iframe" && child_node.Frame != nil && child_node.Frame.(*Frame).Loaded {
+	if elt, ok := child_node.Token.(ElementToken); ok && elt.Tag == "iframe" && child_node.Frame != nil && child_node.Frame.Loaded {
 		child = NewFrameAccessibilityNode(child_node, a)
 	} else {
 		child = NewAccessibilityNode(child_node, a)
@@ -162,10 +160,10 @@ func (a *AccessibilityNode) build_internal(child_node *html.HtmlNode) {
 
 func (a *AccessibilityNode) compute_bounds() []*rect.Rect {
 	if a.node.LayoutObject != nil {
-		return []*rect.Rect{AbsoluteBoundsForObj(a.node.LayoutObject.(*LayoutNode))}
+		return []*rect.Rect{AbsoluteBoundsForObj(a.node.LayoutObject)}
 	}
 
-	if _, ok := a.node.Token.(html.TextToken); ok {
+	if _, ok := a.node.Token.(TextToken); ok {
 		return []*rect.Rect{}
 	}
 
@@ -175,12 +173,12 @@ func (a *AccessibilityNode) compute_bounds() []*rect.Rect {
 		inline = inline.Parent
 	}
 
-	for _, line := range inline.LayoutObject.(*LayoutNode).Children.Get() {
+	for _, line := range inline.LayoutObject.Children.Get() {
 		line_bounds := rect.NewRectEmpty()
 		for _, child := range line.Children.Get() {
 			if child.Node.Parent == a.node {
 				line_bounds = line_bounds.Union(rect.NewRect(
-					child.X, child.Y, child.X+child.Width, child.Y+child.Height,
+					child.X.Get(), child.Y.Get(), child.X.Get()+child.Width.Get(), child.Y.Get()+child.Height.Get(),
 				))
 			}
 		}
@@ -189,30 +187,7 @@ func (a *AccessibilityNode) compute_bounds() []*rect.Rect {
 	return bounds
 }
 
-func (a *AccessibilityNode) map_to_parent(abs_bound *rect.Rect) {
-	return
-}
-
-func absolute_bounds(a A11yNode) []*rect.Rect {
-	abs_bounds := make([]*rect.Rect, 0)
-	for _, bounds := range a.Bounds() {
-		abs_bound := bounds.Clone()
-		var obj A11yNode
-		if _, ok := a.(*FrameAccessibilityNode); ok {
-			obj = a.Parent()
-		} else {
-			obj = a
-		}
-		for obj != nil {
-			obj.map_to_parent(abs_bound)
-			obj = obj.Parent()
-		}
-		abs_bounds = append(abs_bounds, abs_bound)
-	}
-	return abs_bounds
-}
-
-func (a *AccessibilityNode) Node() *html.HtmlNode {
+func (a *AccessibilityNode) Node() *HtmlNode {
 	return a.node
 }
 
@@ -242,16 +217,16 @@ type FrameAccessibilityNode struct {
 	zoom   float64
 }
 
-func NewFrameAccessibilityNode(node *html.HtmlNode, parent *AccessibilityNode) *FrameAccessibilityNode {
+func NewFrameAccessibilityNode(node *HtmlNode, parent *AccessibilityNode) *FrameAccessibilityNode {
 	return &FrameAccessibilityNode{
 		AccessibilityNode: *NewAccessibilityNode(node, parent),
-		scroll:            node.Frame.(*Frame).scroll,
-		zoom:              node.LayoutObject.(*LayoutNode).Zoom.Get(),
+		scroll:            node.Frame.scroll,
+		zoom:              node.LayoutObject.Zoom.Get(),
 	}
 }
 
 func (n *FrameAccessibilityNode) Build() {
-	n.build_internal(n.node.Frame.(*Frame).Nodes)
+	n.build_internal(n.node.Frame.Nodes)
 }
 
 func (n *FrameAccessibilityNode) HitTest(x, y float64) A11yNode {
@@ -271,13 +246,7 @@ func (n *FrameAccessibilityNode) HitTest(x, y float64) A11yNode {
 	return node
 }
 
-func (n *FrameAccessibilityNode) map_to_parent(rect *rect.Rect) {
-	bounds := n.bounds[0]
-	rect.Offset(bounds.Left, bounds.Top-n.scroll)
-	rect = rect.Union(bounds)
-}
-
-func (a *FrameAccessibilityNode) Node() *html.HtmlNode {
+func (a *FrameAccessibilityNode) Node() *HtmlNode {
 	return a.node
 }
 

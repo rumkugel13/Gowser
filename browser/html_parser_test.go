@@ -1,4 +1,4 @@
-package html
+package browser
 
 import (
 	"fmt"
@@ -56,8 +56,8 @@ func TestGetAttributes(t *testing.T) {
 			"IMG SRC='test.jpg' ALT=\"Test Image\" data-test",
 			"img",
 			map[string]string{
-				"src": "test.jpg",
-				"alt": "Test Image",
+				"src":       "test.jpg",
+				"alt":       "Test Image",
 				"data-test": "",
 			},
 		},
@@ -65,8 +65,49 @@ func TestGetAttributes(t *testing.T) {
 			"input type=text required",
 			"input",
 			map[string]string{
-				"type": "text",
+				"type":     "text",
 				"required": "",
+			},
+		},
+		{
+			`div class="sourceCode" id="cb18" data-replace="self.height/new_height" data-expected="False"`,
+			"div",
+			map[string]string{
+				"class":         "sourceCode",
+				"id":            "cb18",
+				"data-replace":  "self.height/new_height",
+				"data-expected": "False",
+			},
+		},
+		{
+			`div class="sourceCode" id="cb17" data-replace="children_dirty%20%3d%20True/children.mark()"`,
+			"div",
+			map[string]string{
+				"class":        "sourceCode",
+				"id":           "cb17",
+				"data-replace": "children_dirty%20%3d%20True/children.mark()",
+			},
+		},
+		{
+			`pre class="sourceCode python"`,
+			"pre",
+			map[string]string{
+				"class": "sourceCode python",
+			},
+		},
+		{
+			`pre 
+			class="sourceCode python"`,
+			"pre",
+			map[string]string{
+				"class": "sourceCode python",
+			},
+		},
+		{
+			"pre\nclass=\"sourceCode python\"",
+			"pre",
+			map[string]string{
+				"class": "sourceCode python",
 			},
 		},
 	}

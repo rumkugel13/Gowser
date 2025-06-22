@@ -1,4 +1,4 @@
-package html
+package browser
 
 import (
 	"slices"
@@ -106,20 +106,38 @@ func (p *HTMLParser) finish() *HtmlNode {
 	return node
 }
 
+func isWhitespace(char rune) bool {
+	switch char {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
 	attributes := make(map[string]string)
 
-	split := strings.SplitN(text, " ", 2)
+	split := strings.FieldsFunc(text, isWhitespace)
+	if len(split) == 0 {
+		return "", attributes
+	}
+
 	tag := strings.ToLower(split[0])
 	if len(split) == 1 {
 		return tag, attributes
 	}
 
-	attr_str := split[1]
+	rest := ""
+	if len(text) > len(split[0]) {
+		rest = strings.TrimSpace(text[len(split[0]):])
+	}
+
+	attr_str := rest
 	start := 0
 	cur := 0
 	for {
-		for start < len(attr_str) && attr_str[start] == ' ' {
+		for start < len(attr_str) && isWhitespace(rune(attr_str[start])) {
 			start++
 		}
 		for cur < len(attr_str) && attr_str[cur] != '=' {
@@ -138,8 +156,8 @@ func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
 			attributes[key] = val
 			cur++ // skip quot
 			start = cur
-		} else if cur < len(attr_str) && !(attr_str[cur] == ' ') {
-			for cur < len(attr_str) && attr_str[cur] != ' ' {
+		} else if cur < len(attr_str) && !isWhitespace(rune(attr_str[cur])) {
+			for cur < len(attr_str) && !isWhitespace(rune(attr_str[cur])) {
 				cur++
 			}
 			val := attr_str[start:cur]

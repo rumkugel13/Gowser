@@ -253,6 +253,20 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] X-Frame-Options
 
 16. Reusing Previous Computation
+    - [x] contenteditable attribute
+    - [x] Caching and invalidation via ProtectedFields
+    - [x] Skipping unnecessary allocation, computation and object traversal
+    - [ ] Exercises (optional)
+      - [ ] Emptying an element
+      - [ ] Protecting layout phases
+      - [ ] Transferring children
+      - [ ] Descendant bits for style
+      - [ ] Resizing the browser
+      - [ ] Matching children
+      - [ ] Invalidating previous
+      - [ ] :hover pseudo-class
+      - [ ] Optimizing away ProtectedField
+      - [ ] Optimizing paint
 
 ## Resources
 

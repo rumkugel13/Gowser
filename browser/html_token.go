@@ -1,4 +1,4 @@
-package html
+package browser
 
 import (
 	"fmt"
@@ -37,5 +37,5 @@ func NewElementToken(tag string, attributes map[string]string) ElementToken {
 }
 
 func (e ElementToken) String() string {
-	return fmt.Sprintf("<" + e.Tag + " %v>", e.Attributes)
+	return fmt.Sprintf("<"+e.Tag+" %v>", e.Attributes)
 }

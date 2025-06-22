@@ -15,10 +15,10 @@ require (
 require (
 	github.com/adrg/strutil v0.3.1 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
-	github.com/go-tts/tts v1.0.1 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
-	github.com/hajimehoshi/oto/v2 v2.3.1 // indirect
-	github.com/hegedustibor/htgo-tts v0.0.0-20240912200108-467b3e535435 // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	// github.com/go-tts/tts v1.0.1 // indirect
+	// github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
+	// github.com/hajimehoshi/oto/v2 v2.3.1 // indirect
+	// github.com/hegedustibor/htgo-tts v0.0.0-20240912200108-467b3e535435 // indirect
 )

@@ -1,4 +1,4 @@
-package css
+package browser
 
 type Rule struct {
 	Selector Selector
@@ -8,7 +8,7 @@ type Rule struct {
 
 func NewRule(media string, selector Selector, body map[string]string) *Rule {
 	return &Rule{
-		Media: media,
+		Media:    media,
 		Selector: selector,
 		Body:     body,
 	}

@@ -3,8 +3,6 @@ package browser
 import (
 	"fmt"
 	"gowser/accessibility"
-	"gowser/css"
-	"gowser/html"
 	"gowser/task"
 	"gowser/trace"
 	"gowser/url"
@@ -26,10 +24,11 @@ const (
 )
 
 var (
-	DEFAULT_STYLE_SHEET []css.Rule
+	DEFAULT_STYLE_SHEET []Rule
 )
 
 func init() {
+	os.Chdir(os.Getenv("WORKSPACE_DIR"))
 	data, err := os.ReadFile("browser.css")
 	if err != nil {
 		fmt.Println("Error loading default style sheet:", err)
@@ -37,7 +36,7 @@ func init() {
 	}
 
 	fmt.Println("Loading default style sheet from browser.css")
-	parser := css.NewCSSParser(string(data))
+	parser := NewCSSParser(string(data))
 	DEFAULT_STYLE_SHEET = parser.Parse()
 }
 
@@ -61,20 +60,20 @@ type Browser struct {
 	active_tab_url           *url.URL
 	active_tab_scroll        float64
 	active_tab_height        float64
-	active_tab_display_list  []html.Command
-	composited_layers        []*html.CompositedLayer
-	draw_list                []html.Command
+	active_tab_display_list  []Command
+	composited_layers        []*CompositedLayer
+	draw_list                []Command
 	needs_composite          bool
 	needs_raster             bool
 	needs_draw               bool
-	composited_updates       map[*html.HtmlNode]html.VisualEffectCommand
+	composited_updates       map[*HtmlNode]VisualEffectCommand
 	dark_mode                bool
 	accessibility_tree       A11yNode
 	needs_accessibility      bool
 	accessibility_is_on      bool
 	has_spoken_document      bool
-	tab_focus                *html.HtmlNode
-	last_tab_focus           *html.HtmlNode
+	tab_focus                *HtmlNode
+	last_tab_focus           *HtmlNode
 	focus_a11y_node          A11yNode
 	active_alerts            []A11yNode
 	spoken_alerts            []A11yNode
@@ -95,7 +94,7 @@ func NewBrowser() *Browser {
 		needs_composite:       false,
 		needs_raster:          false,
 		needs_draw:            false,
-		composited_updates:    make(map[*html.HtmlNode]html.VisualEffectCommand),
+		composited_updates:    make(map[*HtmlNode]VisualEffectCommand),
 		dark_mode:             false,
 	}
 
@@ -434,7 +433,7 @@ func (b *Browser) Commit(tab *Tab, data *CommitData) {
 		b.animation_timer = nil
 		b.composited_updates = data.composited_updates
 		if b.composited_updates == nil {
-			b.composited_updates = make(map[*html.HtmlNode]html.VisualEffectCommand)
+			b.composited_updates = make(map[*HtmlNode]VisualEffectCommand)
 			b.SetNeedsComposite()
 		} else {
 			b.SetNeedsDraw()
@@ -556,9 +555,9 @@ func (b *Browser) set_active_tab(new_tab *Tab) {
 func (b *Browser) clear_data() {
 	b.active_tab_scroll = 0
 	b.active_tab_url = nil
-	b.active_tab_display_list = make([]html.Command, 0)
-	b.composited_layers = make([]*html.CompositedLayer, 0)
-	b.composited_updates = make(map[*html.HtmlNode]html.VisualEffectCommand)
+	b.active_tab_display_list = make([]Command, 0)
+	b.composited_layers = make([]*CompositedLayer, 0)
+	b.composited_updates = make(map[*HtmlNode]VisualEffectCommand)
 	b.accessibility_tree = nil
 }
 
@@ -590,20 +589,20 @@ func (b *Browser) raster_chrome() {
 
 func (b *Browser) composite() {
 	add_parent_pointers(b.active_tab_display_list, nil)
-	b.composited_layers = make([]*html.CompositedLayer, 0)
+	b.composited_layers = make([]*CompositedLayer, 0)
 
-	var all_commands []html.Command
+	var all_commands []Command
 	for _, cmd := range b.active_tab_display_list {
-		all_commands = append(all_commands, html.CommandTreeToList(cmd)...)
+		all_commands = append(all_commands, CommandTreeToList(cmd)...)
 	}
 
-	var non_composited_commands []html.Command
+	var non_composited_commands []Command
 	for _, cmd := range all_commands {
 		// note: need to check for other types of visualeffect as well
-		if v, ok := cmd.(html.VisualEffectCommand); (ok && !v.NeedsCompositing()) || html.IsPaintCommand(cmd) {
+		if v, ok := cmd.(VisualEffectCommand); (ok && !v.NeedsCompositing()) || IsPaintCommand(cmd) {
 			if cmd.GetParent() == nil {
 				non_composited_commands = append(non_composited_commands, cmd)
-			} else if v, ok := cmd.GetParent().(html.VisualEffectCommand); ok && v.NeedsCompositing() {
+			} else if v, ok := cmd.GetParent().(VisualEffectCommand); ok && v.NeedsCompositing() {
 				non_composited_commands = append(non_composited_commands, cmd)
 			}
 		}
@@ -618,8 +617,8 @@ func (b *Browser) composite() {
 				layer.Add(cmd)
 				merged = true
 				break
-			} else if layer.AbsoluteBounds().Intersects(html.LocalToAbsolute(cmd, cmd.Rect())) {
-				layer := html.NewCompositedLayer(cmd)
+			} else if layer.AbsoluteBounds().Intersects(LocalToAbsolute(cmd, cmd.Rect())) {
+				layer := NewCompositedLayer(cmd)
 				b.composited_layers = append(b.composited_layers, layer)
 				merged = true
 				break
@@ -627,13 +626,13 @@ func (b *Browser) composite() {
 		}
 
 		if !merged {
-			layer := html.NewCompositedLayer(cmd)
+			layer := NewCompositedLayer(cmd)
 			b.composited_layers = append(b.composited_layers, layer)
 		}
 	}
 }
 
-func add_parent_pointers(nodes []html.Command, parent html.Command) {
+func add_parent_pointers(nodes []Command, parent Command) {
 	for _, node := range nodes {
 		node.SetParent(parent)
 		add_parent_pointers(*node.Children(), node)
@@ -641,23 +640,23 @@ func add_parent_pointers(nodes []html.Command, parent html.Command) {
 }
 
 func (b *Browser) paint_draw_list() {
-	b.draw_list = make([]html.Command, 0)
-	new_effects := make(map[html.Command]html.Command)
+	b.draw_list = make([]Command, 0)
+	new_effects := make(map[Command]Command)
 	for _, composited_layer := range b.composited_layers {
-		var current_effect html.Command = html.NewDrawCompositedLayer(composited_layer)
+		var current_effect Command = NewDrawCompositedLayer(composited_layer)
 		if len(composited_layer.DisplayItems) == 0 {
 			continue
 		}
 		parent := composited_layer.DisplayItems[0].GetParent()
 		for parent != nil {
-			new_parent := b.get_latest(parent.(html.VisualEffectCommand))
+			new_parent := b.get_latest(parent.(VisualEffectCommand))
 			if parent_effect, ok := new_effects[new_parent]; ok {
 				children := parent_effect.Children()
 				// note: do we need addchild method?
 				*children = append(*children, current_effect)
 				break
 			} else {
-				current_effect = new_parent.(html.VisualEffectCommand).Clone(current_effect)
+				current_effect = new_parent.(VisualEffectCommand).Clone(current_effect)
 				new_effects[new_parent] = current_effect
 				parent = parent.GetParent()
 			}
@@ -687,17 +686,17 @@ func (b *Browser) paint_draw_list() {
 			color = "white"
 		}
 		for _, bound := range b.hovered_a11y_node.Bounds() {
-			b.draw_list = append(b.draw_list, html.NewDrawOutline(bound, color, 2))
+			b.draw_list = append(b.draw_list, NewDrawOutline(bound, color, 2))
 		}
 	}
 }
 
-func (b *Browser) get_latest(effect html.VisualEffectCommand) html.Command {
+func (b *Browser) get_latest(effect VisualEffectCommand) Command {
 	node := effect.GetNode()
 	if _, ok := b.composited_updates[node]; !ok {
 		return effect
 	}
-	if _, ok := effect.(*html.DrawBlend); !ok {
+	if _, ok := effect.(*DrawBlend); !ok {
 		return effect
 	}
 	return b.composited_updates[node]
