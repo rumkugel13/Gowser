@@ -70,7 +70,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Source code snippets have background
     - [ ] Exercises (Optional)
       - [ ] Links bar
-      - [ ] Hidden head
+      - [x] Hidden head
       - [ ] Bullets
       - [ ] Table of Contents
       - [ ] Anonymous block boxes

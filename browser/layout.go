@@ -138,6 +138,10 @@ func (l *BlockLayout) Layout() {
 			children := make([]*LayoutNode, 0)
 			var previous *LayoutNode
 			for _, child := range l.wrap.Node.Children {
+				// Exercise 5-2: Hidden head (and also style and script)
+				if element, ok := child.Token.(ElementToken); ok && slices.Contains([]string{"head", "style", "script"}, element.Tag) {
+					continue
+				}
 				next := NewLayoutNode(NewBlockLayout(), child, l.wrap, previous, l.wrap.Frame)
 				children = append(children, next)
 				previous = next
