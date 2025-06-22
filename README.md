@@ -47,7 +47,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Superscripts
       - [ ] Soft hyphens
       - [ ] Small caps
-      - [ ] Preformatted text
+      - [x] Preformatted text
 
 4. Constructing an HTML Tree
     - [x] HTML parser

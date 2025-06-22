@@ -17,6 +17,7 @@ var (
 type HTMLParser struct {
 	body       string
 	unfinished []*HtmlNode
+	inPre      bool
 }
 
 func NewHTMLParser(body string) *HTMLParser {
@@ -51,7 +52,7 @@ func (p *HTMLParser) Parse() *HtmlNode {
 }
 
 func (p *HTMLParser) add_text(text string) {
-	if strings.TrimSpace(text) == "" {
+	if !p.inPre && strings.TrimSpace(text) == "" {
 		return
 	}
 	p.implicit_tags("")
@@ -68,6 +69,9 @@ func (p *HTMLParser) add_tag(tag string) {
 	p.implicit_tags(tag)
 
 	if strings.HasPrefix(tag, "/") {
+		if tag == "/pre" {
+			p.inPre = false
+		}
 		if len(p.unfinished) == 1 {
 			return
 		}
@@ -80,6 +84,9 @@ func (p *HTMLParser) add_tag(tag string) {
 		node := NewNode(NewElementToken(tag, attributes), parent)
 		parent.Children = append(parent.Children, node)
 	} else {
+		if tag == "pre" {
+			p.inPre = true
+		}
 		var parent *HtmlNode
 		if len(p.unfinished) == 0 {
 			parent = nil

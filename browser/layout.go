@@ -260,11 +260,32 @@ func (l *BlockLayout) layout_mode() string {
 	}
 }
 
+func isInPre(node *HtmlNode) bool {
+	for n := node.Parent; n != nil; n = n.Parent {
+		if el, ok := n.Token.(ElementToken); ok && el.Tag == "pre" {
+			return true
+		}
+	}
+	return false
+}
+
 func (l *BlockLayout) recurse(node *HtmlNode) {
 	if text, ok := node.Token.(TextToken); ok {
-		words := strings.Fields(text.Text)
-		for _, word := range words {
-			l.word(node, word)
+		if isInPre(node) {
+			// In <pre>: preserve all whitespace and newlines
+			lines := strings.Split(text.Text, "\n")
+			for i, line := range lines {
+				l.word(node, line)
+				if i < len(lines)-1 {
+					l.new_line()
+				}
+			}
+		} else {
+			// Not in <pre>: normal word splitting
+			words := strings.Fields(text.Text)
+			for _, word := range words {
+				l.word(node, word)
+			}
 		}
 	} else {
 		element, _ := node.Token.(ElementToken)
@@ -345,7 +366,11 @@ func (l *BlockLayout) add_inline_child(node *HtmlNode, w float64, child_class, w
 	line.Children.Set(append(line.Children.Value, child))
 	l.previous_word = child
 	zoom := l.wrap.Zoom.Read(l.wrap.Children)
-	l.cursor_x += w + fnt.Measure(get_font(node.Style, zoom, l.wrap.Children), " ")
+	if !isInPre(node) {
+		l.cursor_x += w + fnt.Measure(get_font(node.Style, zoom, l.wrap.Children), " ")
+	} else {
+		l.cursor_x += w
+	}
 }
 
 func (l *BlockLayout) new_line() {
@@ -517,7 +542,11 @@ func (l *TextLayout) Layout() {
 		prev_x := l.wrap.Previous.X.Read(l.wrap.X)
 		prev_font := l.wrap.Previous.Font.Read(l.wrap.X)
 		prev_width := l.wrap.Previous.Width.Read(l.wrap.X)
-		l.wrap.X.Set(prev_x + fnt.Measure(prev_font, " ") + prev_width)
+		if !isInPre(l.wrap.Node) {
+			l.wrap.X.Set(prev_x + fnt.Measure(prev_font, " ") + prev_width)
+		} else {
+			l.wrap.X.Set(prev_x + prev_width)
+		}
 	} else {
 		l.wrap.X.Copy(l.wrap.Parent.X)
 	}

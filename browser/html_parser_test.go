@@ -127,3 +127,42 @@ func TestGetAttributes(t *testing.T) {
 		}
 	}
 }
+
+func TestPreTagPreservesWhitespace(t *testing.T) {
+	html := `<pre>
+  line 1
+    line 2
+line   3
+</pre>`
+	parser := NewHTMLParser(html)
+	root := parser.Parse()
+
+	// Find the <pre> node
+	var pre *HtmlNode
+	for _, child := range TreeToList(root) {
+		if el, ok := child.Token.(ElementToken); ok && el.Tag == "pre" {
+			pre = child
+			break
+		}
+	}
+	if pre == nil {
+		t.Fatal("<pre> node not found")
+	}
+
+	// Find the text node inside <pre>
+	var text string
+	for _, child := range pre.Children {
+		if txt, ok := child.Token.(TextToken); ok {
+			text = txt.Text
+			break
+		}
+	}
+	expected := `
+  line 1
+    line 2
+line   3
+`
+	if text != expected {
+		t.Errorf("expected preserved whitespace, got:\n%q\nwant:\n%q", text, expected)
+	}
+}
