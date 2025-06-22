@@ -3,6 +3,7 @@ package url
 import (
 	"bufio"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -25,12 +26,15 @@ type URL struct {
 	port   int
 }
 
-func NewURL(url string) *URL {
+func NewURL(url string) (*URL, error) {
 	u := &URL{}
 	splitURL := strings.Split(url, "://")
+	if len(splitURL) < 2 {
+		return nil, fmt.Errorf("no URL scheme: %s", url)
+	}
 	u.scheme, url = splitURL[0], splitURL[1]
 	if u.scheme != "http" && u.scheme != "https" {
-		panic("Unsupported URL scheme: " + u.scheme)
+		return nil, fmt.Errorf("unsupported URL scheme: %s", u.scheme)
 	}
 	if u.scheme == "http" {
 		u.port = 80
@@ -47,19 +51,19 @@ func NewURL(url string) *URL {
 		u.host = hostParts[0]
 		port, err := strconv.Atoi(hostParts[1])
 		if err != nil {
-			panic("Invalid port in URL: " + hostParts[1])
+			return nil, fmt.Errorf("invalid port in URL: %s", hostParts[1])
 		}
 		u.port = port
 	}
 	u.path = "/" + url
-	return u
+	return u, nil
 }
 
-func (u *URL) Request(referrer *URL, payload string) (map[string]string, string) {
+func (u *URL) Request(referrer *URL, payload string) (map[string]string, []byte, error) {
 	// Create connection
 	conn, err := net.Dial("tcp", u.host+":"+strconv.Itoa(u.port))
 	if err != nil {
-		panic("Failed to connect to host: " + err.Error())
+		return nil, nil, fmt.Errorf("failed to connect to host: %s", err.Error())
 	}
 	defer conn.Close()
 	if u.scheme == "https" {
@@ -68,7 +72,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 		}
 		conn = tls.Client(conn, tlsConfig)
 		if err := conn.(*tls.Conn).Handshake(); err != nil {
-			panic("Failed to perform TLS handshake: " + err.Error())
+			return nil, nil, fmt.Errorf("failed to perform TLS handshake: %s", err.Error())
 		}
 	}
 
@@ -78,7 +82,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 		method = "POST"
 	}
 
-	request := method + " " + u.path + " HTTP/1.0\r\n"
+	request := method + " " + u.path + " HTTP/1.1\r\n"
 	if cookie, ok := COOKIE_JAR[u.host]; ok {
 		cookie, params := cookie.cookie, cookie.params
 		allow_cookie := true
@@ -96,6 +100,8 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 		request += "Content-Length: " + strconv.Itoa(length) + "\r\n"
 	}
 	request += "Host: " + u.host + "\r\n"
+	request += "Connection: close\r\n"
+	request += "User-Agent: Gowser\r\n"
 	request += "\r\n"
 
 	if payload != "" {
@@ -106,7 +112,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 	encoded := []byte(request)
 	_, err = conn.Write(encoded)
 	if err != nil {
-		panic("Failed to send request: " + err.Error())
+		return nil, nil, fmt.Errorf("failed to send request: %s", err.Error())
 	}
 
 	// Read Response
@@ -114,7 +120,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 	_, err = reader.ReadString('\n')
 	// statusline, err = reader.ReadString('\n')
 	if err != nil {
-		panic("Failed to read response: " + err.Error())
+		return nil, nil, fmt.Errorf("failed to read response: %s", err.Error())
 	}
 	// split := strings.SplitN(statusline, " ", 3)
 	// version, status, explanation := split[0], split[1], split[2]
@@ -123,7 +129,7 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			panic("Failed to read response: " + err.Error())
+			return nil, nil, fmt.Errorf("failed to read response: %s", err.Error())
 		}
 		if line == "\r\n" {
 			break
@@ -155,17 +161,17 @@ func (u *URL) Request(referrer *URL, payload string) (map[string]string, string)
 	}
 
 	if _, ok := responseHeaders["transfer-encoding"]; ok {
-		panic("Transfer-Encoding header found in response, unsupported")
+		return nil, nil, fmt.Errorf("transfer-Encoding header found in response, unsupported")
 	}
 	if _, ok := responseHeaders["content-encoding"]; ok {
-		panic("Content-Encoding header found in response, unsupported")
+		return nil, nil, fmt.Errorf("content-Encoding header found in response, unsupported")
 	}
 
 	content, err := io.ReadAll(reader)
 	if err != nil {
-		panic("Failed to read response: " + err.Error())
+		return nil, nil, fmt.Errorf("failed to read response: %s", err.Error())
 	}
-	return responseHeaders, string(content)
+	return responseHeaders, content, nil
 }
 
 func (u *URL) String() string {
@@ -179,7 +185,7 @@ func (u *URL) String() string {
 	return u.scheme + "://" + u.host + port_part + u.path
 }
 
-func (u *URL) Resolve(link_url string) *URL {
+func (u *URL) Resolve(link_url string) (*URL, error) {
 	if strings.Contains(link_url, "://") {
 		return NewURL(link_url)
 	}

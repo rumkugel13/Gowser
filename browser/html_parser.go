@@ -1,4 +1,4 @@
-package html
+package browser
 
 import (
 	"slices"
@@ -16,17 +16,18 @@ var (
 
 type HTMLParser struct {
 	body       string
-	unfinished []*Node
+	unfinished []*HtmlNode
+	inPre      bool
 }
 
 func NewHTMLParser(body string) *HTMLParser {
 	return &HTMLParser{
 		body:       body,
-		unfinished: []*Node{},
+		unfinished: []*HtmlNode{},
 	}
 }
 
-func (p *HTMLParser) Parse() *Node {
+func (p *HTMLParser) Parse() *HtmlNode {
 	buffer := strings.Builder{}
 	inTag := false
 	for _, char := range p.body {
@@ -51,7 +52,7 @@ func (p *HTMLParser) Parse() *Node {
 }
 
 func (p *HTMLParser) add_text(text string) {
-	if strings.TrimSpace(text) == "" {
+	if !p.inPre && strings.TrimSpace(text) == "" {
 		return
 	}
 	p.implicit_tags("")
@@ -68,6 +69,9 @@ func (p *HTMLParser) add_tag(tag string) {
 	p.implicit_tags(tag)
 
 	if strings.HasPrefix(tag, "/") {
+		if tag == "/pre" {
+			p.inPre = false
+		}
 		if len(p.unfinished) == 1 {
 			return
 		}
@@ -80,7 +84,10 @@ func (p *HTMLParser) add_tag(tag string) {
 		node := NewNode(NewElementToken(tag, attributes), parent)
 		parent.Children = append(parent.Children, node)
 	} else {
-		var parent *Node
+		if tag == "pre" {
+			p.inPre = true
+		}
+		var parent *HtmlNode
 		if len(p.unfinished) == 0 {
 			parent = nil
 		} else {
@@ -91,7 +98,7 @@ func (p *HTMLParser) add_tag(tag string) {
 	}
 }
 
-func (p *HTMLParser) finish() *Node {
+func (p *HTMLParser) finish() *HtmlNode {
 	if len(p.unfinished) == 0 {
 		p.implicit_tags("")
 	}
@@ -106,18 +113,68 @@ func (p *HTMLParser) finish() *Node {
 	return node
 }
 
+func isWhitespace(char rune) bool {
+	switch char {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *HTMLParser) get_attributes(text string) (string, map[string]string) {
-	parts := strings.Fields(text)
-	tag := strings.ToLower(parts[0])
 	attributes := make(map[string]string)
-	for _, part := range parts[1:] {
-		if strings.Contains(part, "=") {
-			kv := strings.SplitN(part, "=", 2)
-			key, value := strings.ToLower(kv[0]), kv[1]
-			value = strings.Trim(value, "\"'")
-			attributes[key] = value
+
+	split := strings.FieldsFunc(text, isWhitespace)
+	if len(split) == 0 {
+		return "", attributes
+	}
+
+	tag := strings.ToLower(split[0])
+	if len(split) == 1 {
+		return tag, attributes
+	}
+
+	rest := ""
+	if len(text) > len(split[0]) {
+		rest = strings.TrimSpace(text[len(split[0]):])
+	}
+
+	attr_str := rest
+	start := 0
+	cur := 0
+	for {
+		for start < len(attr_str) && isWhitespace(rune(attr_str[start])) {
+			start++
+		}
+		for cur < len(attr_str) && attr_str[cur] != '=' {
+			cur++
+		}
+		key := strings.ToLower(attr_str[start:cur])
+		cur++
+		start = cur // skip =
+		if cur < len(attr_str) && (attr_str[cur] == '\'' || attr_str[cur] == '"') {
+			quot := attr_str[cur]
+			cur++ // skip quot
+			for cur < len(attr_str) && attr_str[cur] != quot {
+				cur++
+			}
+			val := attr_str[start+1 : cur]
+			attributes[key] = val
+			cur++ // skip quot
+			start = cur
+		} else if cur < len(attr_str) && !isWhitespace(rune(attr_str[cur])) {
+			for cur < len(attr_str) && !isWhitespace(rune(attr_str[cur])) {
+				cur++
+			}
+			val := attr_str[start:cur]
+			attributes[key] = val
+			start = cur
 		} else {
-			attributes[strings.ToLower(part)] = ""
+			if key != "" && key != "/" {
+				attributes[key] = ""
+			}
+			break
 		}
 	}
 	return tag, attributes

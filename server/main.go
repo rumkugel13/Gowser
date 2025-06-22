@@ -102,7 +102,7 @@ func handle_connection(conn net.Conn) {
 	}
 	status, body := do_request(session, method, url, headers, body)
 
-	response := "HTTP/1.0 " + status + "\r\n"
+	response := "HTTP/1.1 " + status + "\r\n"
 	response += "Content-length: " + strconv.Itoa(len(body)) + "\r\n"
 	if _, ok := headers["cookie"]; !ok {
 		template := "Set-Cookie: token=%s; SameSite=Lax\r\n"
@@ -110,6 +110,7 @@ func handle_connection(conn net.Conn) {
 	}
 	csp := "default-src http://localhost:8000"
 	response += "Content-Security-Policy: " + csp + "\r\n"
+	response += "Connection: close\r\n"
 	response += "\r\n" + body
 	conn.Write([]byte(response))
 	// closed by defer
@@ -122,6 +123,12 @@ func do_request(session map[string]string, method, url string, headers map[strin
 		data, err := os.ReadFile("comment.js")
 		if err != nil {
 			fmt.Println("Error reading comment.js")
+		}
+		return "200 OK", string(data)
+	} else if method == "GET" && url == "/eventloop.js" {
+		data, err := os.ReadFile("eventloop.js")
+		if err != nil {
+			fmt.Println("Error reading eventloop.js")
 		}
 		return "200 OK", string(data)
 	} else if method == "GET" && url == "/comment.css" {
@@ -139,6 +146,8 @@ func do_request(session map[string]string, method, url string, headers map[strin
 	} else if method == "POST" && url == "/" {
 		params := form_decode(body)
 		return do_login(session, params)
+	} else if method == "GET" && url == "/count" {
+		return "200 OK", show_count()
 	} else {
 		return "404 Not Found", not_found(url, method)
 	}
@@ -222,6 +231,16 @@ func do_login(session map[string]string, params map[string]string) (string, stri
 		out += fmt.Sprintf("<h1>Invalid password for %s</h1>", username)
 		return "401 Unauthorized", out
 	}
+}
+
+func show_count() string {
+	out := "<!doctype html>"
+	out += "<div>"
+	out += "  Let's count up to 99!"
+	out += "</div>"
+	out += "<div>Output</div>"
+	out += "<script src=/eventloop.js></script>"
+	return out
 }
 
 func not_found(url, method string) string {

@@ -1,227 +1,102 @@
 package browser
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
-	"gowser/css"
-	"gowser/html"
-	"gowser/layout"
-	"gowser/try"
 	u "gowser/url"
-	urllib "net/url"
-	"slices"
-	"sort"
-	"strings"
+	"image"
+	"math"
+	"os"
 	"time"
-
-	tk9_0 "modernc.org/tk9.0"
 )
 
 const (
-	DefaultWidth  = 800.
-	DefaultHeight = 600.
-	SCROLL_STEP   = 100.
+	WIDTH                    = 800.
+	HEIGHT                   = 600.
+	SCROLL_STEP              = 100.
+	TAB_PRINT_DISPLAY_LIST   = false
+	PRINT_DOCUMENT_LAYOUT    = false
+	PRINT_HTML_TREE          = false
+	PRINT_ACCESSIBILITY_TREE = false
 )
 
-type Tab struct {
-	display_list    []layout.Command
-	scroll          float32
-	document        *layout.LayoutNode
-	url             *u.URL
-	tab_height      float32
-	history         []*u.URL
-	Nodes           *html.Node
-	rules           []css.Rule
-	focus           *html.Node
-	js              *JSContext
-	allowed_origins []string
+var (
+	BROKEN_IMAGE image.Image
+)
+
+func init() {
+	os.Chdir(os.Getenv("WORKSPACE_DIR"))
+	image_bytes, err1 := os.ReadFile("Broken_Image.png")
+	image, _, err2 := image.Decode(bytes.NewReader(image_bytes))
+	if err := cmp.Or(err1, err2); err != nil {
+		fmt.Println("Could not load broken image: " + err.Error())
+		return
+	}
+	BROKEN_IMAGE = image
 }
 
-func NewTab(tab_height float32) *Tab {
-	return &Tab{
-		scroll:     0,
-		tab_height: tab_height,
-		history:    make([]*u.URL, 0),
+type Tab struct {
+	display_list []Command
+
+	url           *u.URL
+	tab_height    float64
+	history       []*u.URL
+	focus         *HtmlNode
+	focused_frame *Frame
+	// needs_raf_callbacks   bool
+	needs_accessibility   bool
+	needs_paint           bool
+	root_frame            *Frame
+	dark_mode             bool
+	scroll_changed_in_tab bool
+	scroll                float64
+
+	accessibility_is_on bool
+	accessibility_tree  *AccessibilityNode
+	// has_spoken_document bool
+	// accessibility_focus bool
+	loaded bool
+
+	TaskRunner *TaskRunner
+	browser    *Browser
+
+	composited_updates []*HtmlNode
+	zoom               float64
+
+	window_id_to_frame map[int]*Frame
+	origin_to_js       map[string]*JSContext
+}
+
+func NewTab(browser *Browser, tab_height float64) *Tab {
+	tab := &Tab{
+		tab_height:         tab_height,
+		history:            make([]*u.URL, 0),
+		browser:            browser,
+		dark_mode:          browser.dark_mode,
+		window_id_to_frame: make(map[int]*Frame),
+		zoom:               1.0,
+		origin_to_js:       make(map[string]*JSContext),
 	}
+	tab.TaskRunner = NewTaskRunner(tab)
+	tab.TaskRunner.StartThread()
+	return tab
 }
 
 func (t *Tab) Load(url *u.URL, payload string) {
-	fmt.Println("Requesting URL:", url)
-	start := time.Now()
-	headers, body := url.Request(t.url, payload)
-	fmt.Println("Request took:", time.Since(start))
+	t.loaded = false
 	t.history = append(t.history, url)
-	t.url = url
-
-	t.allowed_origins = nil
-	if val, ok := headers["content-security-policy"]; ok {
-		csp := strings.Fields(val)
-		if len(csp) > 0 && csp[0] == "default-src" {
-			t.allowed_origins = make([]string, 0)
-			for _, origin := range csp[1:] {
-				t.allowed_origins = append(t.allowed_origins, u.NewURL(origin).Origin())
-			}
-		}
-	}
-
-	start = time.Now()
-	t.Nodes = html.NewHTMLParser(body).Parse()
-	// t.nodes.PrintTree(0)
-	fmt.Println("Parsing took:", time.Since(start))
-
-	start = time.Now()
-	t.js = NewJSContext(t)
-	scripts := t.scripts(t.Nodes)
-	for _, script := range scripts {
-		script_url := url.Resolve(script)
-		if !t.allowed_request(script_url) {
-			fmt.Println("Blocked script", script_url, "due to CSP")
-			continue
-		}
-		fmt.Println("Loading script:", script_url)
-		var code string
-		err := try.Try(func() {
-			_, code = script_url.Request(url, "")
-		})
-		if err != nil {
-			fmt.Println("Error loading script:", err)
-		} else {
-			t.js.Run(script, code)
-		}
-	}
-	fmt.Println("Eval took:", time.Since(start))
-
-	start = time.Now()
-	t.rules = slices.Clone(DEFAULT_STYLE_SHEET)
-	links := t.links(t.Nodes)
-	for _, link := range links {
-		style_url := url.Resolve(link)
-		if !t.allowed_request(style_url) {
-			fmt.Println("Blocked stylesheet", style_url, "due to CSP")
-			continue
-		}
-		fmt.Println("Loading stylesheet:", style_url)
-		var style_body string
-		err := try.Try(func() {
-			_, style_body = style_url.Request(url, "")
-		})
-		if err != nil {
-			fmt.Println("Error loading stylesheet:", err)
-		} else {
-			t.rules = append(t.rules, css.NewCSSParser(style_body).Parse()...)
-		}
-	}
-	fmt.Println("Loading stylesheets took:", time.Since(start))
-	t.render()
+	t.TaskRunner.ClearPendingTasks()
+	t.root_frame = NewFrame(t, nil, nil)
+	t.root_frame.Load(url, payload)
+	t.root_frame.frame_width = WIDTH
+	t.root_frame.frame_height = t.tab_height
+	t.loaded = true
 }
 
-func (t *Tab) Draw(canvas *tk9_0.CanvasWidget, offset float32) {
-	start := time.Now()
-	for _, cmd := range t.display_list {
-		if cmd.Top() > t.scroll+t.tab_height {
-			continue // Skip items that are outside the visible area
-		}
-		if cmd.Bottom() < t.scroll {
-			continue // Skip items that are above the visible area
-		}
-		cmd.Execute(t.scroll-offset, *canvas)
-	}
-	fmt.Println("Drawing took:", time.Since(start))
-}
-
-func (t *Tab) scripts(nodes *html.Node) []string {
-	flatNodes := html.TreeToList(nodes)
-	links := []string{}
-	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "script" {
-			if src, exists := element.Attributes["src"]; exists {
-				links = append(links, src)
-			}
-		}
-	}
-	return links
-}
-
-func (t *Tab) links(nodes *html.Node) []string {
-	flatNodes := html.TreeToList(nodes)
-	links := []string{}
-	for _, node := range flatNodes {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "link" {
-			if rel, exists := element.Attributes["rel"]; exists && rel == "stylesheet" {
-				if href, exists := element.Attributes["href"]; exists {
-					links = append(links, href)
-				}
-			}
-		}
-	}
-	return links
-}
-
-func (t *Tab) scrollDown() {
-	max_y := max(t.document.Height+2*layout.VSTEP-t.tab_height, 0)
-	t.scroll = min(t.scroll+SCROLL_STEP, max_y)
-}
-
-func (t *Tab) click(x, y float32) {
-	if t.focus != nil {
-		tok := t.focus.Token.(html.ElementToken)
-		tok.IsFocused = false
-		t.focus.Token = tok
-	}
-	t.focus = nil
-
-	y += t.scroll
-	objs := []*layout.LayoutNode{}
-	for _, obj := range layout.TreeToList(t.document) {
-		if obj.X <= x && x < obj.X+obj.Width &&
-			obj.Y <= y && y < obj.Y+obj.Height {
-			objs = append(objs, obj)
-		}
-	}
-
-	if len(objs) == 0 {
-		return
-	}
-
-	elt := objs[len(objs)-1].Node
-	for elt != nil {
-		element, ok := elt.Token.(html.ElementToken)
-		if !ok {
-			// pass, text token
-		} else if element.Tag == "a" && element.Attributes["href"] != "" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
-			url := t.url.Resolve(element.Attributes["href"])
-			t.Load(url, "")
-			return
-		} else if element.Tag == "input" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
-			t.focus = elt
-
-			tok := elt.Token.(html.ElementToken)
-			tok.Attributes["value"] = ""
-			tok.IsFocused = true
-			elt.Token = tok
-
-			t.render()
-			return
-		} else if element.Tag == "button" {
-			if t.js.DispatchEvent("click", elt) {
-				return
-			}
-			for elt != nil {
-				if elt.Token.(html.ElementToken).Tag == "form" && elt.Token.(html.ElementToken).Attributes["action"] != "" {
-					t.submit_form(elt)
-					return
-				}
-				elt = elt.Parent
-			}
-		}
-		elt = elt.Parent
-	}
-	t.render()
+func (t *Tab) click(x, y float64) {
+	t.Render()
+	t.root_frame.click(x, y)
 }
 
 func (t *Tab) go_back() {
@@ -233,59 +108,234 @@ func (t *Tab) go_back() {
 	}
 }
 
-func (t *Tab) render() {
-	start := time.Now()
-	sort.SliceStable(t.rules, func(i, j int) bool {
-		return css.CascadePriority(t.rules[i]) < css.CascadePriority(t.rules[j])
-	})
-	css.Style(t.Nodes, t.rules)
-	fmt.Println("Styling took:", time.Since(start))
+func (t *Tab) Render() {
+	t.browser.measure.Time("render")
 
-	start = time.Now()
-	t.document = layout.NewLayoutNode(layout.NewDocumentLayout(), t.Nodes, nil)
-	t.document.Layout.Layout()
-	// layout.PrintTree(b.document, 0)
-	t.display_list = make([]layout.Command, 0)
-	layout.PaintTree(t.document, &t.display_list)
-	// layout.PrintCommands(b.display_list)
-	fmt.Println("Layout took:", time.Since(start))
+	for _, frame := range t.window_id_to_frame {
+		if frame.Loaded {
+			frame.Render()
+		}
+	}
+
+	if t.needs_accessibility {
+		t.accessibility_tree = NewAccessibilityNode(t.root_frame.Nodes, nil)
+		t.accessibility_tree.Build()
+		if PRINT_ACCESSIBILITY_TREE {
+			A11yPrintTree(t.accessibility_tree, 0)
+		}
+		t.needs_accessibility = false
+		t.needs_paint = true
+	}
+
+	if t.needs_paint {
+		start := time.Now()
+		t.display_list = make([]Command, 0)
+		paint_tree(t.root_frame.Document, &t.display_list)
+		if TAB_PRINT_DISPLAY_LIST {
+			PrintCommands(t.display_list, 0)
+		}
+		fmt.Println("Paint took:", time.Since(start))
+		t.needs_paint = false
+	}
+
+	t.browser.measure.Stop("render")
+}
+
+func (t *Tab) run_animation_frame(scroll *float64) {
+	if !t.root_frame.scroll_changed_in_frame {
+		t.root_frame.scroll = *scroll
+	}
+
+	needs_composite := false
+	for _, frame := range t.window_id_to_frame {
+		if !frame.Loaded {
+			continue
+		}
+
+		t.browser.measure.Time("eval_run_raf_handlers")
+		frame.js.DispatchRAF(frame.window_id)
+		t.browser.measure.Stop("eval_run_raf_handlers")
+
+		for _, node := range TreeToList(frame.Nodes) {
+			for property_name, animation := range node.Animations {
+				value := animation.Animate()
+				if value != "" {
+					node.Style[property_name].Set(value)
+					t.composited_updates = append(t.composited_updates, node)
+					t.SetNeedsPaint()
+				}
+			}
+		}
+		if frame.needs_style || frame.needs_layout {
+			needs_composite = true
+		}
+	}
+
+	t.Render()
+
+	if t.focus != nil && t.focused_frame.needs_focus_scroll {
+		t.focused_frame.scroll_to(t.focus)
+		t.focused_frame.needs_focus_scroll = false
+	}
+
+	for _, frame := range t.window_id_to_frame {
+		if frame == t.root_frame {
+			continue
+		}
+		if frame.scroll_changed_in_frame {
+			needs_composite = true
+			frame.scroll_changed_in_frame = false
+		}
+	}
+
+	scroll = nil
+	if t.root_frame.scroll_changed_in_frame {
+		scroll = &t.root_frame.scroll
+	}
+
+	var composited_updates map[*HtmlNode]VisualEffectCommand
+	if !needs_composite {
+		composited_updates = map[*HtmlNode]VisualEffectCommand{}
+		for _, node := range t.composited_updates {
+			composited_updates[node] = node.BlendOp
+		}
+	}
+	t.composited_updates = make([]*HtmlNode, 0)
+
+	root_frame_focused := t.focused_frame == nil || t.focused_frame == t.root_frame
+	commit_data := NewCommitData(t.root_frame.url, scroll, math.Ceil(t.root_frame.Document.Height.Get()+2*VSTEP), t.display_list, composited_updates, t.accessibility_tree, t.focus, root_frame_focused)
+	t.display_list = make([]Command, 0)
+	t.root_frame.scroll_changed_in_frame = false
+
+	t.browser.Commit(t, commit_data)
+}
+
+func (t *Tab) SetNeedsRenderAllFrames() {
+	for _, frame := range t.window_id_to_frame {
+		// note: might need sort based on insertion order
+		frame.SetNeedsRender()
+	}
+}
+
+func (t *Tab) SetNeedsAccessibility() {
+	if !t.accessibility_is_on {
+		return
+	}
+	t.needs_accessibility = true
+	t.browser.SetNeedsAnimationFrame(t)
+}
+
+func (t *Tab) SetNeedsPaint() {
+	t.needs_paint = true
+	t.browser.SetNeedsAnimationFrame(t)
 }
 
 func (t *Tab) keypress(char rune) {
+	frame := t.root_frame
+	if t.focused_frame != nil {
+		frame = t.focused_frame
+	}
+	frame.keypress(char)
+}
+
+func (t *Tab) backspace() {
+	frame := t.root_frame
+	if t.focused_frame != nil {
+		frame = t.focused_frame
+	}
+	frame.backspace()
+}
+
+func (t *Tab) advance_tab() {
+	frame := t.root_frame
+	if t.focused_frame != nil {
+		frame = t.focused_frame
+	}
+	frame.advance_tab()
+}
+
+func (t *Tab) enter() {
 	if t.focus != nil {
-		if t.js.DispatchEvent("keydown", t.focus) {
-			return
+		frame := t.root_frame
+		if t.focused_frame != nil {
+			frame = t.focused_frame
 		}
-		t.focus.Token.(html.ElementToken).Attributes["value"] += string(char)
-		t.render()
+		frame.activate_element(t.focus)
 	}
 }
 
-func (t *Tab) submit_form(elt *html.Node) {
-	if t.js.DispatchEvent("submit", elt) {
-		return
+func (t *Tab) ZoomBy(increment bool) {
+	if increment {
+		t.zoom *= 1.1
+		t.scroll *= 1.1
+	} else {
+		t.zoom *= 1 / 1.1
+		t.scroll *= 1 / 1.1
 	}
-	var inputs []*html.ElementToken
-	for _, node := range html.TreeToList(elt) {
-		if element, ok := node.Token.(html.ElementToken); ok && element.Tag == "input" && element.Attributes["name"] != "" {
-			inputs = append(inputs, &element)
+	for _, frame := range t.window_id_to_frame {
+		frame.Document.Zoom.Mark()
+	}
+	t.scroll_changed_in_tab = true
+	t.SetNeedsRenderAllFrames()
+}
+
+func (t *Tab) ResetZoom() {
+	t.scroll /= t.zoom
+	t.zoom = 1.0
+	for _, frame := range t.window_id_to_frame {
+		frame.Document.Zoom.Mark()
+	}
+	t.scroll_changed_in_tab = true
+	t.SetNeedsRenderAllFrames()
+}
+
+func (t *Tab) set_dark_mode(val bool) {
+	t.dark_mode = val
+	t.SetNeedsRenderAllFrames()
+}
+
+func (t *Tab) ScrollUp() {
+	frame := t.root_frame
+	if t.focused_frame != nil {
+		frame = t.focused_frame
+	}
+	frame.scroll_up()
+	t.SetNeedsPaint()
+}
+
+func (t *Tab) ScrollDown() {
+	frame := t.root_frame
+	if t.focused_frame != nil {
+		frame = t.focused_frame
+	}
+	frame.scroll_down()
+	t.SetNeedsPaint()
+}
+
+func paint_tree(layout_object *LayoutNode, displayList *[]Command) {
+	cmds := layout_object.Layout.Paint()
+
+	if _, ok := layout_object.Layout.(*IframeLayout); ok && layout_object.Node.Frame != nil && layout_object.Node.Frame.Loaded {
+		paint_tree(layout_object.Node.Frame.Document, &cmds)
+	} else {
+		for _, child := range layout_object.Children.Get() {
+			paint_tree(child, &cmds)
 		}
 	}
 
-	var body string
-	for _, input := range inputs {
-		name := input.Attributes["name"]
-		value := input.Attributes["value"]
-		name = urllib.QueryEscape(name)
-		value = urllib.QueryEscape(value)
-		body += "&" + name + "=" + value
-	}
-	body = body[1:]
-
-	url := t.url.Resolve(elt.Token.(html.ElementToken).Attributes["action"])
-	t.Load(url, body)
+	cmds = layout_object.Layout.PaintEffects(cmds)
+	*displayList = append(*displayList, cmds...)
 }
 
-func (t *Tab) allowed_request(url *u.URL) bool {
-	return t.allowed_origins == nil || slices.Contains(t.allowed_origins, url.Origin())
+func (t *Tab) get_js(url *u.URL) *JSContext {
+	origin := url.Origin()
+	if _, found := t.origin_to_js[origin]; !found {
+		t.origin_to_js[origin] = NewJSContext(t, origin)
+	}
+	return t.origin_to_js[origin]
+}
+
+func (t *Tab) post_message(message string, target_window_id int) {
+	frame := t.window_id_to_frame[target_window_id]
+	frame.js.dispatch_post_message(message, target_window_id)
 }

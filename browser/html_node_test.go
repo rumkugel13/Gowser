@@ -1,4 +1,4 @@
-package html
+package browser
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 func TestNodeReferenceConsistency(t *testing.T) {
 	// Create a simple node structure
-	root := &Node{
+	root := &HtmlNode{
 		Token: ElementToken{Tag: "div"},
 	}
 

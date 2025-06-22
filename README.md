@@ -11,7 +11,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [X] Receive and Split HTTP Response
    - [X] Print Text
    - [ ] Exercises (Optional)
-     - [ ] HTTP/1.1
+     - [x] HTTP/1.1
      - [ ] File URLs
      - [ ] data
      - [ ] Entities
@@ -28,7 +28,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
    - [x] Scrolling the content in the window
    - [ ] Exercises (Optional)
      - [ ] Line breaks
-     - [ ] Mouse wheel
+     - [x] Mouse wheel
      - [ ] Resizing
      - [ ] Scrollbar
      - [ ] Zoom
@@ -47,7 +47,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Superscripts
       - [ ] Soft hyphens
       - [ ] Small caps
-      - [ ] Preformatted text
+      - [x] Preformatted text
 
 4. Constructing an HTML Tree
     - [x] HTML parser
@@ -70,7 +70,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Source code snippets have background
     - [ ] Exercises (Optional)
       - [ ] Links bar
-      - [ ] Hidden head
+      - [x] Hidden head
       - [ ] Bullets
       - [ ] Table of Contents
       - [ ] Anonymous block boxes
@@ -83,9 +83,9 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Refactor BlockLayout to move the font properties to CSS
     - [x] Move most tag-specific reasoning to a browser style sheet
     - [ ] Exercises (Optional)
-      - [ ] Fonts (font-family)
+      - [x] Fonts (font-family)
       - [ ] Width/Height
-      - [ ] Class selectors
+      - [x] Class selectors
       - [ ] display property
       - [ ] Shorthand Properties
       - [ ] Inline Style Sheets
@@ -101,7 +101,7 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
     - [x] Draw tabs, address bar and more
     - [x] Implement text editing
     - [ ] Exercises (Optional)
-      - [] Backspace
+      - [x] Backspace
       - [ ] Middle click
       - [ ] Window title
       - [ ] Forward
@@ -158,3 +158,121 @@ A Toy Web Browser based on [Web Browser Engineering](https://browser.engineering
       - [ ] Referer
 
 11. Adding Visual Effects
+    - [x] Browser compositing with extra surfaces for faster scrolling
+    - [x] Partial transparency via an alpha channel
+    - [x] User-configurable blending modes via mix-blend-mode
+    - [ ] Rounded rectangle clipping via destination-in blending or direct clipping
+    - [x] Optimizations to avoid surfaces when possible
+    - [ ] Exercises (optional)
+      - [ ] Filters
+      - [ ] Hit testing
+      - [ ] Interest Region
+      - [ ] Overflow scrolling
+      - [ ] Touch input
+
+12. Scheduling Tasks and Threads
+    - [x] Task queues with tasks for js, user input and rendering
+    - [x] Trying to consistently generate frames at fixed interval, i.e. 30hz
+    - [x] Two threads involved in rendering
+    - [x] Main thread runs javascript and special rendering
+    - [x] Browser thread draws display list to screen, handles input events and scrolling
+    - [x] Main thread synchronizes with browser thread through commit
+    - [ ] Exercises (optional)
+      - [ ] setInterval
+      - [ ] Task timing
+      - [ ] Clock-based frame timing
+      - [ ] Scheduling
+      - [ ] Threaded loading
+      - [ ] Networking thread
+      - [ ] Optimized scheduling
+      - [ ] Raster-and-draw thread
+
+13. Animating and Compositing
+    - [x] Different types of Animations (DOM, input-driven, etc)
+    - [ ] GPU Acceleration
+    - [x] Compositing for smooth and threaded visual effect animations
+    - [x] Optimized compositing layers
+    - [x] Transformed elements
+      - [x] Overlap testing
+    - [ ] Exercises (optional)
+      - [ ] background-color
+      - [ ] Easing functions
+      - [ ] Composited and threaded animations
+      - [ ] Width/Height animations
+      - [ ] CSS animations
+      - [ ] Overlap testing with transform animations
+      - [ ] Avoiding sparse composited layers
+      - [ ] Short display lists
+      - [ ] Hit testing
+      - [ ] z-index
+      - [ ] Animated scrolling
+      - [ ] Opacity plus draw
+
+14. Making Content Accessible
+    - [x] Zoom
+    - [x] Dark mode
+      - [x] CSS prefers-color-scheme
+    - [x] Keyboard navigation
+    - [x] Indicating focus with outline
+    - [x] Accessibility tree
+    - [x] Screen readers
+      - [ ] Text-to-speech
+      - [x] Alerts
+    - [X] Voice and visual interaction
+    - [ ] Exercises (optional)
+      - [ ] Focus ring with good contrast
+      - [ ] Focus method and events
+      - [ ] Highlighting elements during read
+      - [ ] Width media queries
+      - [ ] Mixed inlines
+      - [ ] Threaded accessibility
+      - [ ] High-contrast mode
+      - [ ] focus-visible
+      - [ ] OS integration
+      - [ ] The zoom CSS property
+
+15. Supporting Embedded Content
+    - [x] Embedding images
+    - [x] Embedding iframes
+      - [x] Render iframes
+      - [x] Input events on iframes
+      - [x] Scripts in iframes
+      - [x] Communicating between iframes
+    - [ ] Exercises (optional)
+      - [ ] Canvas element
+      - [ ] Background images
+      - [ ] object-fit
+      - [ ] Lazy loading
+      - [ ] Iframe aspect ratio
+      - [ ] Image placeholders
+      - [ ] Media queries
+      - [ ] Target origin for postMessage
+      - [ ] Multi-frame focus
+      - [ ] Iframe history
+      - [ ] Iframes added or removed by script
+      - [ ] X-Frame-Options
+
+16. Reusing Previous Computation
+    - [x] contenteditable attribute
+    - [x] Caching and invalidation via ProtectedFields
+    - [x] Skipping unnecessary allocation, computation and object traversal
+    - [ ] Exercises (optional)
+      - [ ] Emptying an element
+      - [ ] Protecting layout phases
+      - [ ] Transferring children
+      - [ ] Descendant bits for style
+      - [ ] Resizing the browser
+      - [ ] Matching children
+      - [ ] Invalidating previous
+      - [ ] :hover pseudo-class
+      - [ ] Optimizing away ProtectedField
+      - [ ] Optimizing paint
+
+## Resources
+
+- [github.com/veandco/go-sdl2](github.com/veandco/go-sdl2) (Window)
+- [github.com/fogleman/gg](github.com/fogleman/gg) (Graphics)
+- [github.com/adrg/sysfont](github.com/adrg/sysfont) (Font finding)
+- [github.com/mazznoer/csscolorparser](github.com/mazznoer/csscolorparser) (CSS color parsing)
+- [gopkg.in/olebedev/go-duktape.v3](gopkg.in/olebedev/go-duktape.v3) (Javascript)
+- [github.com/anthonynsimon/bild](github.com/anthonynsimon/bild) (Blending)

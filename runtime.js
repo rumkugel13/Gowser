@@ -1,59 +1,159 @@
-console = { log: _log };
+window.console = { log: _log };
 
-document = { querySelectorAll: function(s) {
-    var handles = _querySelectorAll(s);
-    return handles.map(function(h) { return new Node(h) });
-}}
+window.document = {
+    querySelectorAll: function (s) {
+        var handles = _querySelectorAll(s, window._id);
+        return handles.map(function (h) { return new window.Node(h) });
+    }
+}
 
-function Node(handle) { this.handle = handle; }
+window.Node = function(handle) { this.handle = handle; }
 
-Node.prototype.getAttribute = function(attr) {
+window.Node.prototype.getAttribute = function (attr) {
     return _getAttribute(this.handle, attr)
 }
 
-LISTENERS = {}
+window.Node.prototype.setAttribute = function(attr, value) {
+    _setAttribute(this.handle, attr, value, window._id);
+}
 
-function Event(type) {
+window.LISTENERS = {}
+
+window.Event = function(type) {
     this.type = type
     this.do_default = true;
 }
 
-Event.prototype.preventDefault = function() {
+window.Event.prototype.preventDefault = function () {
     this.do_default = false;
 }
 
-Node.prototype.addEventListener = function(type, listener) {
-    if (!LISTENERS[this.handle]) LISTENERS[this.handle] = {};
-    var dict = LISTENERS[this.handle];
+window.Node.prototype.addEventListener = function (type, listener) {
+    if (!window.LISTENERS[this.handle]) window.LISTENERS[this.handle] = {};
+    var dict = window.LISTENERS[this.handle];
     if (!dict[type]) dict[type] = [];
     var list = dict[type];
     list.push(listener);
 }
 
-Object.defineProperty(Node.prototype, 'innerHTML', {
-    set: function(s) {
-        _innerHTML_set(this.handle, s.toString())
+Object.defineProperty(window.Node.prototype, 'innerHTML', {
+    set: function (s) {
+        _innerHTML_set(this.handle, s.toString(), window._id);
     }
 });
 
-Node.prototype.dispatchEvent = function(evt) {
+Object.defineProperty(window.Node.prototype, 'style', {
+    set: function(s) {
+        _style_set(this.handle, s.toString(), window._id);
+    }
+});
+
+window.Node.prototype.dispatchEvent = function (evt) {
     var type = evt.type;
     var handle = this.handle;
-    var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
+    var list = (window.LISTENERS[handle] && window.LISTENERS[handle][type]) || [];
     for (var i = 0; i < list.length; i++) {
         list[i].call(this, evt);
     }
     return evt.do_default;
 }
 
-function XMLHttpRequest() {}
+window.SET_TIMEOUT_REQUESTS = {}
 
-XMLHttpRequest.prototype.open = function(method, url, is_async) {
-    if (is_async) throw Error("Asynchronous XHR is not supported");
+window.setTimeout = function(callback, time_delta) {
+    var handle = Object.keys(window.SET_TIMEOUT_REQUESTS).length;
+    window.SET_TIMEOUT_REQUESTS[handle] = callback;
+    _setTimeout(handle, time_delta, window._id)
+}
+
+window.__runSetTimeout = function(handle) {
+    var callback = window.SET_TIMEOUT_REQUESTS[handle]
+    callback();
+}
+
+window.XHR_REQUESTS = {}
+
+window.XMLHttpRequest = function() {
+    this.handle = Object.keys(window.XHR_REQUESTS).length;
+    window.XHR_REQUESTS[this.handle] = this;
+}
+
+window.XMLHttpRequest.prototype.open = function (method, url, is_async) {
+    this.is_async = is_async;
     this.method = method;
     this.url = url;
 }
 
-XMLHttpRequest.prototype.send = function(body) {
-    this.responseText = _XMLHttpRequest_send(this.method, this.url, body);
+window.XMLHttpRequest.prototype.send = function (body) {
+    this.responseText = _XMLHttpRequest_send(this.method, this.url, body, this.is_async, this.handle, window._id);
 }
+
+window.__runXHROnload = function(body, handle) {
+    var obj = window.XHR_REQUESTS[handle];
+    var evt = new window.Event('load');
+    obj.responseText = body;
+    if (obj.onload)
+        obj.onload(evt);
+}
+
+window.RAF_LISTENERS = [];
+
+window.requestAnimationFrame = function(fn) {
+    window.RAF_LISTENERS.push(fn);
+    _requestAnimationFrame();
+}
+
+window.__runRAFHandlers = function() {
+    var handlers_copy = [];
+    for (var i = 0; i < window.RAF_LISTENERS.length; i++) {
+        handlers_copy.push(window.RAF_LISTENERS[i]);
+    }
+    window.RAF_LISTENERS = [];
+    for (var i = 0; i < handlers_copy.length; i++) {
+        handlers_copy[i]();
+    }
+}
+
+window.WINDOW_LISTENERS = {}
+
+window.MessageEvent = function(data) {
+    this.type = "message";
+    this.data = data;
+}
+
+Window.prototype.postMessage = function(message, origin) {
+    _postMessage(this._id, message, origin)
+}
+
+Window.prototype.addEventListener = function(type, listener) {
+    if (!window.WINDOW_LISTENERS[this.handle])
+        window.WINDOW_LISTENERS[this.handle] = {};
+    var dict = window.WINDOW_LISTENERS[this.handle];
+    if (!dict[type]) dict[type] = [];
+    var list = dict[type];
+    list.push(listener);
+}
+
+Window.prototype.dispatchEvent = function(evt) {
+    var type = evt.type;
+    var handle = this.handle
+    var list = (window.WINDOW_LISTENERS[handle] &&
+        window.WINDOW_LISTENERS[handle][type]) || [];
+    for (var i = 0; i < list.length; i++) {
+        list[i].call(this, evt);
+    }
+
+    return evt.do_default;
+}
+
+Object.defineProperty(Window.prototype, 'parent', {
+    configurable: true,
+    get: function() {
+        var parent_id = _parent(window._id);
+        if (parent_id != undefined) {
+            var parent = WINDOWS[parent_id];
+            if (parent === undefined) parent = new Window(parent_id);
+            return parent;
+        }
+    }
+});
