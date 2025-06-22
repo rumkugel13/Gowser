@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	SHOW_COMPOSITED_LAYER_BORDERS = true
+	SHOW_COMPOSITED_LAYER_BORDERS = false
 	PRINT_DISPLAY_LIST            = false
 )
 
